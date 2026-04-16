@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>HandX Training Hub uses Bluetooth to connect to the HandX device for task control and telemetry.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>HandX Training Hub uses the rear camera to detect task elements and render real-time training overlays.</string>
+</dict>
+</plist>
