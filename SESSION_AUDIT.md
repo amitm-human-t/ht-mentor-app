@@ -11,28 +11,25 @@
 
 ## Git State
 
-**Active branch:** `claude-branch` (off `main`)  
+**Active branch:** `phase-4` (off `claude-branch`, off `main`)  
 **Remote:** `https://github.com/amitm-human-t/ht-mentor-app` (empty — push pending, HTTP 500 from GitHub)
 
 ### Commit Log
 
 ```
+[phase-4 head]  Phase 4: Results, Analysis, Leaderboards, Reports, UserManagement
 3da5108  Phase 3: TaskRunner full overhaul — HUD, TrainerControlsPanel, landscape layout
 309e314  gitignore: exclude videos, sounds, and mlpackages from tracking
 e9272ae  Phase 2.2+2.3: Hub redesign + TaskPicker card grid with Liquid Glass
 4ffbc36  Phase 2.1: UserChooserView — landscape split trainee management screen
 1cadb1e  Session audit: complete Phase 1.3+1.4 status, point to Phase 2.1 next
 7e37235  Phase 1.3+1.4: BLE mock provider + disconnect policy
-6d64e6b  Harden agent-sync: version-control hook + bidirectional sync
-1bcf070  Add Human Instructions section + enforce CLAUDE.md sync via pre-commit hook
-7d19e96  Add next-agent prompt block to CLAUDE.md
-c29a7db  Update CLAUDE.md with session audit and handoff instructions
 302d582  Phase 1.2+1.5+1.6: Design system, coordinate fix, overlay colors
 ac181e8  Phase 0+1.1: CLAUDE.md/AGENTS.md/.clinerules + full @Observable migration
 8b429a1  Initial commit (project skeleton)
 ```
 
-**Current build:** ✅ 0 errors (iPad Pro 13-inch M5, iOS 26.4 simulator)
+**Current build:** ✅ 0 errors (iPad Pro 13-inch M5, iOS 26.4.1 simulator)
 
 ---
 
@@ -51,28 +48,33 @@ ac181e8  Phase 0+1.1: CLAUDE.md/AGENTS.md/.clinerules + full @Observable migrati
 | 2.2 | `HubView` full redesign — `GlassEffectContainer`, left panel, action card grid | e9272ae |
 | 2.3 | `TaskPickerView` card grid — `FlowLayout`, mode pills, `matchedTransitionSource` | e9272ae |
 | 3 | `TaskRunnerView` landscape layout, `RunnerHUDView`, `TrainerControlsPanel` | 3da5108 |
+| 4 | Results, Analysis, Leaderboards, Reports, UserManagement — all 5 Phase 4 screens | phase-4 head |
 
-### Key Files Created/Modified This Run
+### Key Files Created/Modified in Phase 4
 
 ```
 New files:
-  Core/Session/UserDefaultsStore.swift
-  Features/UserChooser/UserChooserView.swift
-  Features/TaskRunner/RunnerHUDView.swift
-  Features/TaskRunner/TrainerControlsPanel.swift
-  .cline/skills/           (14 skill reference sheets)
-  SESSION_AUDIT.md         (this file)
+  Features/Results/ResultsView.swift
+  Features/Analysis/AnalysisView.swift
+  Features/Leaderboards/LeaderboardsView.swift
+  Features/Reports/ReportsView.swift
+  Features/UserManagement/UserManagementView.swift
 
 Modified files:
-  App/AppModel.swift               (+.userChooser route, selectUser, openUserChooser)
-  ContentView.swift                (all route destinations)
-  Core/Contracts/TaskContracts.swift (TaskConfig.dominantHand)
-  Core/Storage/Repositories.swift  (UserRepository.delete)
-  Features/Hub/HubView.swift       (full redesign)
-  Features/TaskPicker/TaskPickerView.swift (full redesign)
-  Features/TaskRunner/TaskRunnerView.swift (landscape layout)
-  .gitignore                       (videos, sounds, mlpackages)
+  App/AppModel.swift               (5 new AppRoute cases + 5 openXxx() nav methods)
+  ContentView.swift                (5 new .navigationDestination branches)
+  Features/TaskRunner/TaskRunnerView.swift
+    (+Results button in finished state, +runResultsShown flag to prevent double-persist)
 ```
+
+### Phase 4 Design Decisions
+
+- **ResultsView score counter:** `.contentTransition(.numericText())` + spring animation delay 0.15s
+- **AnalysisView tabs:** Custom pill tab bar (4 tabs: Overview, Details, HandX, Notes); Swift Charts `LineMark+AreaMark` sparkline with `catmullRom` interpolation
+- **LeaderboardsView podium:** 2nd|1st|3rd height arrangement; `ContentUnavailableView` for empty state; task + mode filter pills
+- **ReportsView:** Date range quick buttons (7d/30d/90d) + sheet picker; `BarMark` per-task session count chart; `startOfDay`/`endOfDay` date extension for inclusive range filtering
+- **UserManagementView:** Same landscape split pattern as UserChooserView; no "Select Trainee" primary action (management-only); active trainee badge shown in right panel
+- **double-persist guard:** `runResultsShown` flag in TaskRunnerView prevents `onDisappear` from re-persisting if user navigated to Results via the Results button
 
 ---
 
@@ -83,55 +85,22 @@ Modified files:
 | UserChooser | `.userChooser` | ✅ Done |
 | Hub | root | ✅ Done (redesigned) |
 | TaskPicker | `.taskPicker` | ✅ Done (card grid) |
-| TaskRunner | `.taskRunner(task)` | ✅ Done (landscape + HUD + panel) |
-| Results | `.results(summary)` | ❌ Placeholder — Phase 4 |
-| Analysis | `.analysis(id)` | ❌ Placeholder — Phase 4 |
-| Leaderboards | `.leaderboards` | ❌ Placeholder — Phase 4 |
-| Reports | `.reports` | ❌ Placeholder — Phase 4 |
+| TaskRunner | `.taskRunner(task)` | ✅ Done (landscape + HUD + panel + Results button) |
+| Results | `.results(summary)` | ✅ Done (Phase 4) |
+| Analysis | `.analysis(id)` | ✅ Done (Phase 4) |
+| Leaderboards | `.leaderboards` | ✅ Done (Phase 4) |
+| Reports | `.reports` | ✅ Done (Phase 4) |
+| UserManagement | `.userManagement` | ✅ Done (Phase 4) |
 | Curriculum + Run | `.curriculum` / `.curriculumRun` | ❌ Phase 9 |
-| UserManagement | `.userManagement` | ❌ Placeholder — Phase 4 |
 | CustomTaskConfig | `.customTaskConfig` | ❌ Phase 9 |
 
 ---
 
 ## What to Do Next
 
-### Phase 4 — Results, Analysis, Leaderboards, Reports, UserManagement ← START HERE
+### Phase 5 — Task Engines ← START HERE
 
-**Skills:** `ios-ai-ml-skills:swiftui-animation`, `ios-ai-ml-skills:swift-charts`, `ios-ai-ml-skills:swiftdata`
-
-**4.1 ResultsView** (`Features/Results/ResultsView.swift`)
-- Score hero with `.contentTransition(.numericText())` counting from 0 on appear
-- Duration / accuracy / targets in glass cards
-- Three CTAs: Retry | Analyze | Back to Hub
-- `.navigationTransition(.zoom)` entry from TaskRunner
-
-**4.2 AnalysisView** (`Features/Analysis/AnalysisView.swift`)
-- 4 tabs via `TabView(.page)`: Overview, Task-specific, HandX, Notes
-- Score sparkline (Swift Charts), per-run table, HandX activation count
-- Notes tab: `TextEditor` → saved to `summaryPayloadJSON`
-
-**4.3 LeaderboardsView** (`Features/Leaderboards/LeaderboardsView.swift`)
-- `@Query` with task + mode filter
-- Podium top-3 (gold/silver/bronze)
-- `LazyVStack` rows below podium
-- `ContentUnavailableView` for empty state
-
-**4.4 ReportsView** (`Features/Reports/ReportsView.swift`)
-- Date range picker, task/user filters
-- Summary cards: total sessions, avg score, best, total time
-- Bar chart: per-task counts
-
-**4.5 UserManagementView** (`Features/UserManagement/UserManagementView.swift`)
-- Landscape split (same layout as UserChooserView)
-- Swipe to delete + edit inline
-- Route: `.userManagement`
-
-**Wire all new routes in ContentView.swift after building each view.**
-
-### Phase 5 — Task Engines
-
-**Skills:** `ios-ai-ml-skills:swift-concurrency` (for async patterns in engines)
+**Skills:** `ios-ai-ml-skills:swift-concurrency`, `ios-ai-ml-skills:coreml`
 
 - `TipPositioningTaskEngine` — slot states, HandX lock gating, audio callouts
 - `RubberBandTaskEngine` — occupied pins, stability guard (3 consecutive frames)
@@ -148,15 +117,22 @@ Modified files:
 
 ---
 
-## Xcode Action Items (Human Must Do)
+## Xcode Action Items (Human Must Do After Phase 4)
 
-After this session, open Xcode and add these files to the target (if not already present):
+After this session, open Xcode and add these **new** Phase 4 files to the target:
+- `Features/Results/ResultsView.swift`
+- `Features/Analysis/AnalysisView.swift`
+- `Features/Leaderboards/LeaderboardsView.swift`
+- `Features/Reports/ReportsView.swift`
+- `Features/UserManagement/UserManagementView.swift`
+
+**How:** Project Navigator → right-click `Features` parent group → Add Files to 'p2 app'... → check "Add to target: p2 app"
+
+Also: these Phase 3 files if not already linked:
 - `Core/Session/UserDefaultsStore.swift`
 - `Features/UserChooser/UserChooserView.swift`
 - `Features/TaskRunner/RunnerHUDView.swift`
 - `Features/TaskRunner/TrainerControlsPanel.swift`
-
-**How:** Project Navigator → right-click parent group → Add Files to 'p2 app'... → check "Add to target: p2 app"
 
 ---
 
@@ -166,7 +142,7 @@ After this session, open Xcode and add these files to the target (if not already
 /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild build \
   -project "/Users/amitm/tk_models/ipad app/p2 app/p2 app/p2 app.xcodeproj" \
   -scheme "p2 app" \
-  -destination "platform=iOS Simulator,name=iPad Pro 13-inch (M5),OS=26.4" \
+  -destination "platform=iOS Simulator,name=iPad Pro 13-inch (M5),OS=26.4.1" \
   -configuration Debug
 ```
 

@@ -8,6 +8,7 @@ struct TaskRunnerView: View {
 
     @State private var selectedMode: TaskMode = .guided
     @State private var isControlPanelVisible = true
+    @State private var runResultsShown = false
     @Environment(\.dismiss) private var dismiss
 
     init(appModel: AppModel, taskDefinition: TaskDefinition) {
@@ -59,7 +60,9 @@ struct TaskRunnerView: View {
             }
         }
         .onDisappear {
-            if let summary = runnerCoordinator.buildSummary(),
+            // Only persist here if we haven't already done so via the Results button
+            if !runResultsShown,
+               let summary = runnerCoordinator.buildSummary(),
                runnerCoordinator.stateMachine.phase == .finished {
                 appModel.persistCompletedRun(summary: summary)
             }
@@ -171,6 +174,19 @@ struct TaskRunnerView: View {
                 .tint(Color.hxSuccess)
             } else if phase == .finished {
                 Button {
+                    if let summary = runnerCoordinator.buildSummary() {
+                        runResultsShown = true
+                        appModel.openResults(summary: summary)
+                    }
+                } label: {
+                    Label("Results", systemImage: "chart.bar.fill")
+                        .font(.hxCallout)
+                }
+                .buttonStyle(.glassProminent)
+                .tint(Color.hxCyan)
+
+                Button {
+                    runResultsShown = false
                     runnerCoordinator.reset()
                 } label: {
                     Label("Retry", systemImage: "arrow.counterclockwise")

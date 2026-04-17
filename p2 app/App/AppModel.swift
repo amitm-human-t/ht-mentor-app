@@ -91,6 +91,27 @@ final class AppModel {
         }
     }
 
+    func openResults(summary: RunSummaryDraft) {
+        persistCompletedRun(summary: summary)
+        path.append(.results(summary))
+    }
+
+    func openAnalysis(runID: UUID) {
+        path.append(.analysis(runID))
+    }
+
+    func openLeaderboards() {
+        path.append(.leaderboards)
+    }
+
+    func openReports() {
+        path.append(.reports)
+    }
+
+    func openUserManagement() {
+        path.append(.userManagement)
+    }
+
     func startTask(_ task: TaskDefinition) {
         guard canStartTasks else {
             openDiagnostics()
@@ -174,6 +195,11 @@ enum AppRoute: Hashable {
     case userChooser
     case taskPicker
     case taskRunner(TaskDefinition)
+    case results(RunSummaryDraft)
+    case analysis(UUID)
+    case leaderboards
+    case reports
+    case userManagement
     case diagnostics
     case permissions
     case ble
