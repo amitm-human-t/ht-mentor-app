@@ -1,9 +1,9 @@
 import Foundation
-import Combine
 import OSLog
 
+@Observable
 @MainActor
-final class RunnerCoordinator: ObservableObject {
+final class RunnerCoordinator {
     enum InputSource: String, CaseIterable, Identifiable {
         case liveCamera
         case debugVideo
@@ -20,8 +20,8 @@ final class RunnerCoordinator: ObservableObject {
         }
     }
 
-    @Published private(set) var stateMachine = RunStateMachine()
-    @Published private(set) var latestOutput = TaskStepOutput(
+    private(set) var stateMachine = RunStateMachine()
+    private(set) var latestOutput = TaskStepOutput(
         statusText: "Idle",
         score: 0,
         targetInfo: "No task selected",
@@ -29,11 +29,11 @@ final class RunnerCoordinator: ObservableObject {
         events: [],
         overlayPayload: .empty
     )
-    @Published private(set) var activeTask: TaskDefinition?
-    @Published private(set) var selectedMode: TaskMode = .guided
-    @Published private(set) var currentFailure: RunnerFailure?
-    @Published var inputSource: InputSource = .liveCamera
-    @Published private(set) var latestInferenceStatus = InferenceStatus(
+    private(set) var activeTask: TaskDefinition?
+    private(set) var selectedMode: TaskMode = .guided
+    private(set) var currentFailure: RunnerFailure?
+    var inputSource: InputSource = .liveCamera
+    private(set) var latestInferenceStatus = InferenceStatus(
         taskModelLoaded: false,
         instrumentModelLoaded: false,
         taskOutputNames: [],

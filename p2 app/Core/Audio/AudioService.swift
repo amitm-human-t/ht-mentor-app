@@ -1,9 +1,10 @@
 import Foundation
 import AVFAudio
-import Combine
+
 
 @MainActor
-final class AudioService: ObservableObject {
+@Observable
+final class AudioService {
     private var player: AVAudioPlayer?
 
     func play(_ sound: SoundCatalog) {

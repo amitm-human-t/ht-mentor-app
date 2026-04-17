@@ -2,20 +2,20 @@ import SwiftUI
 import AVFoundation
 
 struct AppPreviewStageView: View {
-    @ObservedObject var appModel: AppModel
+    @Bindable var appModel: AppModel
     let showsControls: Bool
     let compact: Bool
-    @ObservedObject private var runnerCoordinator: RunnerCoordinator
-    @ObservedObject private var debugVideoFrameSource: DebugVideoFrameSource
-    @ObservedObject private var cameraService: CameraService
+    private let runnerCoordinator: RunnerCoordinator
+    private let debugVideoFrameSource: DebugVideoFrameSource
+    private let cameraService: CameraService
 
     init(appModel: AppModel, showsControls: Bool = true, compact: Bool = false) {
         self.appModel = appModel
         self.showsControls = showsControls
         self.compact = compact
-        self._runnerCoordinator = ObservedObject(wrappedValue: appModel.runnerCoordinator)
-        self._debugVideoFrameSource = ObservedObject(wrappedValue: appModel.debugVideoFrameSource)
-        self._cameraService = ObservedObject(wrappedValue: appModel.cameraService)
+        self.runnerCoordinator = appModel.runnerCoordinator
+        self.debugVideoFrameSource = appModel.debugVideoFrameSource
+        self.cameraService = appModel.cameraService
     }
 
     var body: some View {

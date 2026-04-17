@@ -3,7 +3,7 @@ import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @StateObject private var appModel = AppModel()
+    @State private var appModel = AppModel()
 
     var body: some View {
         NavigationStack(path: $appModel.path) {

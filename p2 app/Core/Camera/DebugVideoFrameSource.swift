@@ -1,13 +1,14 @@
 @preconcurrency import AVFoundation
 import AVKit
-import Combine
+
 import Foundation
 import OSLog
 
 /// Replays bundled training videos into the shared frame bus so task logic can
 /// run against deterministic footage instead of the live camera.
 @MainActor
-final class DebugVideoFrameSource: ObservableObject {
+@Observable
+final class DebugVideoFrameSource {
     struct BundledVideo: Identifiable, Hashable {
         let id = UUID()
         let name: String
@@ -15,10 +16,10 @@ final class DebugVideoFrameSource: ObservableObject {
         let relatedTasks: Set<TaskIdentifier>
     }
 
-    @Published private(set) var selectedVideoURL: URL?
-    @Published private(set) var bundledVideos: [BundledVideo] = []
-    @Published private(set) var isRunning = false
-    @Published private(set) var previewPlayer: AVPlayer?
+    private(set) var selectedVideoURL: URL?
+    private(set) var bundledVideos: [BundledVideo] = []
+    private(set) var isRunning = false
+    private(set) var previewPlayer: AVPlayer?
 
     private var playbackTask: Task<Void, Never>?
     private var playerLoopObserver: NSObjectProtocol?

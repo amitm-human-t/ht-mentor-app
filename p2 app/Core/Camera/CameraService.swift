@@ -1,12 +1,13 @@
 @preconcurrency import AVFoundation
 import Foundation
-import Combine
+
 import OSLog
 
 /// Owns the live rear-camera capture session and publishes frames into the
 /// shared frame bus used by the inference workers.
 @MainActor
-final class CameraService: NSObject, ObservableObject {
+@Observable
+final class CameraService: NSObject {
     enum SessionState: Equatable {
         case idle
         case starting
@@ -14,8 +15,8 @@ final class CameraService: NSObject, ObservableObject {
         case failed(String)
     }
 
-    @Published private(set) var authorizationStatus: AVAuthorizationStatus = AVCaptureDevice.authorizationStatus(for: .video)
-    @Published private(set) var sessionState: SessionState = .idle
+    private(set) var authorizationStatus: AVAuthorizationStatus = AVCaptureDevice.authorizationStatus(for: .video)
+    private(set) var sessionState: SessionState = .idle
 
     nonisolated(unsafe) let session = AVCaptureSession()
 
@@ -23,8 +24,8 @@ final class CameraService: NSObject, ObservableObject {
     private let outputQueue = DispatchQueue(label: "p2.camera.output", qos: .userInitiated)
     private let videoOutput = AVCaptureVideoDataOutput()
     private let sampleBufferDelegate = SampleBufferDelegate()
-    nonisolated(unsafe) private var configured = false
-    nonisolated(unsafe) private var frameBus: CameraFrameBus?
+    nonisolated private var configured = false
+    nonisolated private var frameBus: CameraFrameBus?
     private var configurationTask: Task<Void, Error>?
 
     func refreshAuthorizationStatus() async {

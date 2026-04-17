@@ -1,10 +1,11 @@
 import CoreBluetooth
 import Foundation
 import simd
-import Combine
+
 
 @MainActor
-final class HandXBLEManager: NSObject, ObservableObject {
+@Observable
+final class HandXBLEManager: NSObject {
     enum ConnectionState: String {
         case disconnected
         case scanning
@@ -13,18 +14,21 @@ final class HandXBLEManager: NSObject, ObservableObject {
         case error
     }
 
-    @Published private(set) var connectionState: ConnectionState = .disconnected
-    @Published private(set) var discoveredDevices: [DiscoveredHandXDevice] = []
-    @Published private(set) var latestSample = HandXSample.zero
-    @Published private(set) var statusText = "Disconnected"
+    private(set) var connectionState: ConnectionState = .disconnected
+    private(set) var discoveredDevices: [DiscoveredHandXDevice] = []
+    private(set) var latestSample = HandXSample.zero
+    private(set) var statusText = "Disconnected"
 
     private let serviceUUID = CBUUID(string: "DD90EC52-0000-4357-891A-26D580F709EF")
     private let fastUUID = CBUUID(string: "DD90EC52-2001-4357-891A-26D580F709EF")
     private let slowUUID = CBUUID(string: "DD90EC52-2002-4357-891A-26D580F709EF")
     private let legacyUUID = CBUUID(string: "DD90EC52-1002-4357-891A-26D580F709EF")
 
+    @ObservationIgnored
     private lazy var centralManager = CBCentralManager(delegate: self, queue: nil)
+    @ObservationIgnored
     private var connectedPeripheral: CBPeripheral?
+    @ObservationIgnored
     private var reconnectTask: Task<Void, Never>?
 
     func startScan() {

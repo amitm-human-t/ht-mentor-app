@@ -1,9 +1,9 @@
 import SwiftUI
 
 struct TaskRunnerView: View {
-    @ObservedObject var appModel: AppModel
-    @ObservedObject private var runnerCoordinator: RunnerCoordinator
-    @ObservedObject private var debugVideoFrameSource: DebugVideoFrameSource
+    let appModel: AppModel
+    private let runnerCoordinator: RunnerCoordinator
+    private let debugVideoFrameSource: DebugVideoFrameSource
     let taskDefinition: TaskDefinition
     @State private var selectedMode: TaskMode = .guided
     @State private var isControlPanelVisible = false
@@ -11,8 +11,8 @@ struct TaskRunnerView: View {
     init(appModel: AppModel, taskDefinition: TaskDefinition) {
         self.appModel = appModel
         self.taskDefinition = taskDefinition
-        self._runnerCoordinator = ObservedObject(wrappedValue: appModel.runnerCoordinator)
-        self._debugVideoFrameSource = ObservedObject(wrappedValue: appModel.debugVideoFrameSource)
+        self.runnerCoordinator = appModel.runnerCoordinator
+        self.debugVideoFrameSource = appModel.debugVideoFrameSource
     }
 
     var body: some View {

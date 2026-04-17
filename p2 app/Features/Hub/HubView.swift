@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct HubView: View {
-    @ObservedObject var appModel: AppModel
+    let appModel: AppModel
 
     var body: some View {
         ScrollView {

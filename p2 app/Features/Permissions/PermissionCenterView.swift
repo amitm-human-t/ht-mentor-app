@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct PermissionCenterView: View {
-    @ObservedObject var permissionCenter: PermissionCenter
+    let permissionCenter: PermissionCenter
 
     var body: some View {
         List {

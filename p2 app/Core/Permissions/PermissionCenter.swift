@@ -2,11 +2,12 @@ import AVFoundation
 import CoreBluetooth
 import Foundation
 import UIKit
-import Combine
+
 
 @MainActor
-final class PermissionCenter: NSObject, ObservableObject {
-    @Published private(set) var snapshot = PermissionSnapshot(camera: .notDetermined, bluetooth: .notDetermined)
+@Observable
+final class PermissionCenter: NSObject {
+    private(set) var snapshot = PermissionSnapshot(camera: .notDetermined, bluetooth: .notDetermined)
 
     private var bluetoothProbe: CBCentralManager?
 

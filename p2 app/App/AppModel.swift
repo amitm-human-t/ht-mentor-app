@@ -1,16 +1,16 @@
 import SwiftUI
 import SwiftData
-import Combine
 import OSLog
 
+@Observable
 @MainActor
-final class AppModel: ObservableObject {
-    @Published var path: [AppRoute] = []
-    @Published var diagnostics = StartupDiagnostics()
-    @Published var selectedUser: UserRecord?
-    @Published var deviceSupport = DeviceSupportSnapshot.current()
-    @Published var previewVisible = true
-    @Published var previewControlsVisible = true
+final class AppModel {
+    var path: [AppRoute] = []
+    var diagnostics = StartupDiagnostics()
+    var selectedUser: UserRecord?
+    var deviceSupport = DeviceSupportSnapshot.current()
+    var previewVisible = true
+    var previewControlsVisible = true
 
     let permissionCenter = PermissionCenter()
     let cameraService = CameraService()
@@ -20,6 +20,7 @@ final class AppModel: ObservableObject {
     let modelRegistry = CoreMLModelRegistry()
     let frameBus = CameraFrameBus()
 
+    @ObservationIgnored
     private(set) lazy var runnerCoordinator = RunnerCoordinator(
         cameraService: cameraService,
         debugVideoFrameSource: debugVideoFrameSource,

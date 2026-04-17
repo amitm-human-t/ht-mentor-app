@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct TaskPickerView: View {
-    @ObservedObject var appModel: AppModel
+    let appModel: AppModel
 
     var body: some View {
         List {

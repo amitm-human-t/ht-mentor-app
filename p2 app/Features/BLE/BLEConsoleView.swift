@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct BLEConsoleView: View {
-    @ObservedObject var bleManager: HandXBLEManager
+    let bleManager: HandXBLEManager
 
     var body: some View {
         List {
