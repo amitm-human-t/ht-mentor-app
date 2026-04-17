@@ -14,16 +14,44 @@ struct AssetCatalog: Sendable {
             .init(pathComponents: ["models", "tippos"], fileExtension: "mlpackage", kind: .model)
         ],
         sounds: [
+            // Backgrounds
             .init(pathComponents: ["sounds", "backgrounds", "background1"], fileExtension: "wav", kind: .sound),
             .init(pathComponents: ["sounds", "backgrounds", "background2"], fileExtension: "wav", kind: .sound),
+            // Effects
             .init(pathComponents: ["sounds", "effects", "fail"], fileExtension: "wav", kind: .sound),
             .init(pathComponents: ["sounds", "effects", "finished"], fileExtension: "wav", kind: .sound),
             .init(pathComponents: ["sounds", "effects", "gameover"], fileExtension: "wav", kind: .sound),
             .init(pathComponents: ["sounds", "effects", "success"], fileExtension: "wav", kind: .sound),
             .init(pathComponents: ["sounds", "effects", "success2"], fileExtension: "wav", kind: .sound),
+            // KeyLock callouts (1–13)
             .init(pathComponents: ["sounds", "keylock", "1"], fileExtension: "mp3", kind: .sound),
+            .init(pathComponents: ["sounds", "keylock", "2"], fileExtension: "mp3", kind: .sound),
+            .init(pathComponents: ["sounds", "keylock", "3"], fileExtension: "mp3", kind: .sound),
+            .init(pathComponents: ["sounds", "keylock", "4"], fileExtension: "mp3", kind: .sound),
+            .init(pathComponents: ["sounds", "keylock", "5"], fileExtension: "mp3", kind: .sound),
+            .init(pathComponents: ["sounds", "keylock", "6"], fileExtension: "mp3", kind: .sound),
+            .init(pathComponents: ["sounds", "keylock", "7"], fileExtension: "mp3", kind: .sound),
+            .init(pathComponents: ["sounds", "keylock", "8"], fileExtension: "mp3", kind: .sound),
+            .init(pathComponents: ["sounds", "keylock", "9"], fileExtension: "mp3", kind: .sound),
+            .init(pathComponents: ["sounds", "keylock", "10"], fileExtension: "mp3", kind: .sound),
+            .init(pathComponents: ["sounds", "keylock", "11"], fileExtension: "mp3", kind: .sound),
+            .init(pathComponents: ["sounds", "keylock", "12"], fileExtension: "mp3", kind: .sound),
             .init(pathComponents: ["sounds", "keylock", "13"], fileExtension: "mp3", kind: .sound),
+            // TipPositioning callouts — left hand (l1–l7)
             .init(pathComponents: ["sounds", "tip_positioning", "l1"], fileExtension: "mp3", kind: .sound),
+            .init(pathComponents: ["sounds", "tip_positioning", "l2"], fileExtension: "mp3", kind: .sound),
+            .init(pathComponents: ["sounds", "tip_positioning", "l3"], fileExtension: "mp3", kind: .sound),
+            .init(pathComponents: ["sounds", "tip_positioning", "l4"], fileExtension: "mp3", kind: .sound),
+            .init(pathComponents: ["sounds", "tip_positioning", "l5"], fileExtension: "mp3", kind: .sound),
+            .init(pathComponents: ["sounds", "tip_positioning", "l6"], fileExtension: "mp3", kind: .sound),
+            .init(pathComponents: ["sounds", "tip_positioning", "l7"], fileExtension: "mp3", kind: .sound),
+            // TipPositioning callouts — right hand (r1–r7)
+            .init(pathComponents: ["sounds", "tip_positioning", "r1"], fileExtension: "mp3", kind: .sound),
+            .init(pathComponents: ["sounds", "tip_positioning", "r2"], fileExtension: "mp3", kind: .sound),
+            .init(pathComponents: ["sounds", "tip_positioning", "r3"], fileExtension: "mp3", kind: .sound),
+            .init(pathComponents: ["sounds", "tip_positioning", "r4"], fileExtension: "mp3", kind: .sound),
+            .init(pathComponents: ["sounds", "tip_positioning", "r5"], fileExtension: "mp3", kind: .sound),
+            .init(pathComponents: ["sounds", "tip_positioning", "r6"], fileExtension: "mp3", kind: .sound),
             .init(pathComponents: ["sounds", "tip_positioning", "r7"], fileExtension: "mp3", kind: .sound)
         ]
     )
