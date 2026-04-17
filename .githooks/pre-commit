@@ -1,0 +1,93 @@
+#!/bin/sh
+#
+# pre-commit hook: keep CLAUDE.md, .clinerules, and AGENTS.md in sync.
+#
+# Any agent (Claude Code, Cline, Codex CLI, Cursor) may edit any one of the
+# three files. This hook detects which one was changed, uses it as the
+# source of truth, and propagates it to the other two before the commit lands.
+#
+# Rules:
+#   - Exactly one of the three staged with changes → it wins, others are overwritten
+#   - Two or three staged with DIFFERENT content   → abort (ambiguous source)
+#   - Two or three staged with IDENTICAL content   → already in sync, proceed
+#   - None of the three staged                     → verify no silent drift; abort if found
+#
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+F1="$REPO_ROOT/CLAUDE.md"
+F2="$REPO_ROOT/.clinerules"
+F3="$REPO_ROOT/AGENTS.md"
+
+# Which of the three are currently staged?
+staged_f1=0; staged_f2=0; staged_f3=0
+git diff --cached --name-only | grep -qE "^CLAUDE\.md$"    && staged_f1=1
+git diff --cached --name-only | grep -qE "^\.clinerules$"  && staged_f2=1
+git diff --cached --name-only | grep -qE "^AGENTS\.md$"    && staged_f3=1
+
+total_staged=$((staged_f1 + staged_f2 + staged_f3))
+
+# ── None of the three are staged ─────────────────────────────────────────────
+if [ "$total_staged" -eq 0 ]; then
+  # Silent drift check — abort if any two disagree
+  if ! diff -q "$F1" "$F2" > /dev/null 2>&1 || ! diff -q "$F1" "$F3" > /dev/null 2>&1; then
+    echo ""
+    echo "ERROR: CLAUDE.md / .clinerules / AGENTS.md are out of sync but none are staged."
+    echo "Fix by running:  cp CLAUDE.md .clinerules && cp CLAUDE.md AGENTS.md"
+    echo "Then:            git add CLAUDE.md .clinerules AGENTS.md"
+    echo ""
+    exit 1
+  fi
+  exit 0
+fi
+
+# ── Exactly one staged ───────────────────────────────────────────────────────
+if [ "$total_staged" -eq 1 ]; then
+  if   [ "$staged_f1" -eq 1 ]; then SOURCE="$F1"; SOURCE_NAME="CLAUDE.md"
+  elif [ "$staged_f2" -eq 1 ]; then SOURCE="$F2"; SOURCE_NAME=".clinerules"
+  else                               SOURCE="$F3"; SOURCE_NAME="AGENTS.md"
+  fi
+  cp "$SOURCE" "$F1"; cp "$SOURCE" "$F2"; cp "$SOURCE" "$F3"
+  git add "$F1" "$F2" "$F3"
+  echo "[pre-commit] $SOURCE_NAME changed → synced CLAUDE.md + .clinerules + AGENTS.md."
+  exit 0
+fi
+
+# ── Two or three staged ──────────────────────────────────────────────────────
+# Collect the staged files into a list
+staged_files=""
+[ "$staged_f1" -eq 1 ] && staged_files="$staged_files CLAUDE.md"
+[ "$staged_f2" -eq 1 ] && staged_files="$staged_files .clinerules"
+[ "$staged_f3" -eq 1 ] && staged_files="$staged_files AGENTS.md"
+
+# Check if all staged files have identical content
+all_same=1
+first=""
+for f in $staged_files; do
+  full_path="$REPO_ROOT/$f"
+  if [ -z "$first" ]; then
+    first="$full_path"
+  else
+    if ! diff -q "$first" "$full_path" > /dev/null 2>&1; then
+      all_same=0
+      break
+    fi
+  fi
+done
+
+if [ "$all_same" -eq 1 ]; then
+  # All staged files are identical — just make sure the unstaged one matches too
+  cp "$first" "$F1"; cp "$first" "$F2"; cp "$first" "$F3"
+  git add "$F1" "$F2" "$F3"
+  echo "[pre-commit] Multiple agent context files staged (identical) → all three synced."
+  exit 0
+else
+  echo ""
+  echo "ERROR: Multiple agent context files staged with DIFFERENT content:"
+  echo "  Staged:$staged_files"
+  echo ""
+  echo "Ambiguous source of truth. Decide which file is correct, then run:"
+  echo "  cp <correct-file> CLAUDE.md && cp CLAUDE.md .clinerules && cp CLAUDE.md AGENTS.md"
+  echo "  git add CLAUDE.md .clinerules AGENTS.md"
+  echo ""
+  exit 1
+fi

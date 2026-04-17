@@ -379,6 +379,19 @@ All agents use the same `CLAUDE.md` (= `.clinerules` = `AGENTS.md`) as their mas
 2. The agent will read CLAUDE.md first and know exactly what commit it's continuing from
 3. After the session, verify the agent updated the Session Audit and NEXT AGENT PROMPT sections and committed
 
+**Sync enforcement (pre-commit hook):**
+The hook in `.githooks/pre-commit` auto-syncs all three files on every commit:
+- Claude edits `CLAUDE.md` → hook copies to `.clinerules` + `AGENTS.md`
+- Cline edits `.clinerules` → hook copies to `CLAUDE.md` + `AGENTS.md`
+- Codex edits `AGENTS.md` → hook copies to `CLAUDE.md` + `.clinerules`
+- Two files staged with different content → commit blocked with error
+
+**After a fresh clone or new worktree, run once:**
+```bash
+git config core.hooksPath .githooks
+```
+This is required for any machine/agent that clones the repo fresh.
+
 ---
 
 ## Session Audit — Last Updated 2026-04-17
