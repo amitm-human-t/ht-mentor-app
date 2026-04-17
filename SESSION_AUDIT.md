@@ -11,7 +11,7 @@
 
 ## Git State
 
-**Active branch:** `phase-4` (off `claude-branch`, off `main`)  
+**Active branch:** `phase-5` (off `phase-4`)  
 **Remote:** `https://github.com/amitm-human-t/ht-mentor-app` (empty — push pending, HTTP 500 from GitHub)
 
 ### Commit Log
@@ -49,6 +49,7 @@ ac181e8  Phase 0+1.1: CLAUDE.md/AGENTS.md/.clinerules + full @Observable migrati
 | 2.3 | `TaskPickerView` card grid — `FlowLayout`, mode pills, `matchedTransitionSource` | e9272ae |
 | 3 | `TaskRunnerView` landscape layout, `RunnerHUDView`, `TrainerControlsPanel` | 3da5108 |
 | 4 | Results, Analysis, Leaderboards, Reports, UserManagement — all 5 Phase 4 screens | phase-4 head |
+| 5 | TipPositioning, RubberBand, SpringsSuturing, ManualScoring engines + AudioService callouts | phase-5 head |
 
 ### Key Files Created/Modified in Phase 4
 
@@ -98,15 +99,11 @@ Modified files:
 
 ## What to Do Next
 
-### Phase 5 — Task Engines ← START HERE
+### ✅ Phase 5 — COMPLETE
 
-**Skills:** `ios-ai-ml-skills:swift-concurrency`, `ios-ai-ml-skills:coreml`
+All 4 task engines implemented + AudioService expanded + RunnerCoordinator wired.
 
-- `TipPositioningTaskEngine` — slot states, HandX lock gating, audio callouts
-- `RubberBandTaskEngine` — occupied pins, stability guard (3 consecutive frames)
-- `SpringsSuturingTaskEngine` — pole progression, drift guard
-- `ManualScoringEngine` — trainer-action-only scoring
-- Wire into `RunnerCoordinator.engine(for:)` factory
+### Phase 6+7+8 — Polish ← START HERE
 
 ### Phase 6+7+8 — Polish
 

@@ -31,7 +31,8 @@ final class AppModel {
         bleManager: bleManager,
         modelRegistry: modelRegistry,
         permissionCenter: permissionCenter,
-        frameBus: frameBus
+        frameBus: frameBus,
+        audioService: audioService
     )
 
     private var userRepository: UserRepository?
