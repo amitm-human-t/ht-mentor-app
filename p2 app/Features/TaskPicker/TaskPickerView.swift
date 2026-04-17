@@ -5,6 +5,7 @@ import SwiftUI
 struct TaskPickerView: View {
     let appModel: AppModel
     @Namespace private var zoomNS
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,6 +21,23 @@ struct TaskPickerView: View {
 
     private var pickerHeader: some View {
         HStack(spacing: HXSpacing.md) {
+            Button {
+                dismiss()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.left")
+                        .font(.callout.weight(.semibold))
+                    Text("Hub")
+                        .font(.hxCallout)
+                }
+                .foregroundStyle(Color.hxCyan)
+            }
+            .buttonStyle(.plain)
+
+            Rectangle()
+                .fill(Color.hxSurfaceBorder)
+                .frame(width: 1, height: 20)
+
             VStack(alignment: .leading, spacing: 3) {
                 Text("Tasks")
                     .font(.hxTitle2)

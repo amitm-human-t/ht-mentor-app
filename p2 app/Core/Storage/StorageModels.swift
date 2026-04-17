@@ -56,7 +56,7 @@ final class RunSummaryRecord {
     }
 }
 
-struct RunSummaryDraft {
+struct RunSummaryDraft: Hashable {
     let runID: UUID
     let userID: UUID?
     let taskID: String
@@ -70,4 +70,7 @@ struct RunSummaryDraft {
     let accuracyPercent: Double?
     let handXUsed: Bool
     let summaryPayload: [String: String]
+
+    var durationSeconds: Int { durationMS / 1000 }
+    var taskTitle: String { TaskDefinition.all.first { $0.id.rawValue == taskID }?.title ?? taskID }
 }

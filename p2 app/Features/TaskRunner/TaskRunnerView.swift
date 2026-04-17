@@ -8,6 +8,7 @@ struct TaskRunnerView: View {
 
     @State private var selectedMode: TaskMode = .guided
     @State private var isControlPanelVisible = true
+    @Environment(\.dismiss) private var dismiss
 
     init(appModel: AppModel, taskDefinition: TaskDefinition) {
         self.appModel = appModel
@@ -107,6 +108,24 @@ struct TaskRunnerView: View {
 
     private var bottomBar: some View {
         HStack(spacing: HXSpacing.lg) {
+            let phase = runnerCoordinator.stateMachine.phase
+
+            // Back button — only when not actively running
+            if phase == .idle || phase == .finished || phase == .error {
+                Button {
+                    dismiss()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "chevron.left")
+                            .font(.callout.weight(.semibold))
+                        Text(phase == .finished ? "Done" : "Tasks")
+                            .font(.hxCallout)
+                    }
+                    .foregroundStyle(Color.hxCyan)
+                }
+                .buttonStyle(.plain)
+            }
+
             // Controls toggle
             Button {
                 withAnimation(.hxPanel) {
@@ -123,10 +142,8 @@ struct TaskRunnerView: View {
 
             Spacer()
 
-            // Quick run controls
-            let phase = runnerCoordinator.stateMachine.phase
-
-            if phase == .idle || phase == .error || phase == .finished {
+            // Primary run control
+            if phase == .idle || phase == .error {
                 Button {
                     Task { await runnerCoordinator.start() }
                 } label: {
@@ -152,17 +169,27 @@ struct TaskRunnerView: View {
                 }
                 .buttonStyle(.glassProminent)
                 .tint(Color.hxSuccess)
+            } else if phase == .finished {
+                Button {
+                    runnerCoordinator.reset()
+                } label: {
+                    Label("Retry", systemImage: "arrow.counterclockwise")
+                        .font(.hxCallout)
+                }
+                .buttonStyle(.glass)
             }
 
-            Button {
-                runnerCoordinator.finish()
-            } label: {
-                Label("End Run", systemImage: "xmark.circle.fill")
-                    .font(.hxCallout)
+            // End Run (active states only — back button covers idle/finished)
+            if phase == .running || phase == .paused {
+                Button {
+                    runnerCoordinator.finish()
+                } label: {
+                    Label("End Run", systemImage: "xmark.circle.fill")
+                        .font(.hxCallout)
+                }
+                .buttonStyle(.glass)
+                .tint(Color.hxDanger)
             }
-            .buttonStyle(.glass)
-            .tint(Color.hxDanger)
-            .disabled(phase == .idle)
         }
         .padding(.horizontal, HXSpacing.xl)
         .padding(.vertical, HXSpacing.md)

@@ -183,6 +183,36 @@ final class RunnerCoordinator {
         AppLogger.runtime.info("Runner finished")
     }
 
+    /// Switch the active frame source (camera ↔ debug video).
+    /// Safe to call at any run phase — pauses the run if active, swaps source, then resumes.
+    func switchInputSource(to newSource: InputSource) async {
+        guard newSource != inputSource else { return }
+        AppLogger.runtime.info("Switching input source: \(self.inputSource.rawValue, privacy: .public) → \(newSource.rawValue, privacy: .public)")
+
+        let wasRunning = stateMachine.phase == .running
+        if wasRunning {
+            runLoopTask?.cancel()
+        }
+
+        // Stop both sources — workers stay subscribed to frameBus, just stop feeding it
+        cameraService.stopSession()
+        debugVideoFrameSource.stop()
+
+        inputSource = newSource
+
+        if wasRunning || stateMachine.phase == .paused {
+            // Only restart frame source if we were actually running/paused (not idle/finished)
+            do {
+                try await startFrameSource()
+                if wasRunning { beginRunLoop() }
+            } catch {
+                AppLogger.runtime.error("Frame source switch failed: \(error.localizedDescription, privacy: .public)")
+                currentFailure = .startup(error.localizedDescription)
+                stateMachine.fail()
+            }
+        }
+    }
+
     // MARK: - BLE Disconnect Policy
 
     /// Called from tick() when a BLE drop is detected during a locked-sprint run.
@@ -314,13 +344,9 @@ final class RunnerCoordinator {
     }
 
     private func stopFrameSources() {
-        switch inputSource {
-        case .liveCamera:
-            debugVideoFrameSource.stop()
-        case .debugVideo:
-            debugVideoFrameSource.stop()
-            cameraService.stopSession()
-        }
+        // Stop both unconditionally — safe to call stop on an already-stopped source
+        cameraService.stopSession()
+        debugVideoFrameSource.stop()
     }
 }
 

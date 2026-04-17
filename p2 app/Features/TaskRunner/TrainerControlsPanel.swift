@@ -257,7 +257,9 @@ struct TrainerControlsPanel: View {
     private var inputSourceBinding: Binding<RunnerCoordinator.InputSource> {
         Binding(
             get: { coordinator.inputSource },
-            set: { coordinator.inputSource = $0 }
+            set: { newSource in
+                Task { await coordinator.switchInputSource(to: newSource) }
+            }
         )
     }
 
