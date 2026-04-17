@@ -302,6 +302,85 @@ Located at `sounds/` (symlinked into Xcode):
 
 ---
 
+## 🧑 Human Instructions — What You Need to Do Manually
+
+AI agents work entirely via terminal/filesystem. Some things MUST be done by a human in Xcode or the system. Check this section after every session.
+
+### After Any Session Where New Files Were Created
+
+**Problem:** Files created by the AI via terminal do NOT automatically appear in Xcode's project navigator. Xcode uses an explicit file list in `p2 app.xcodeproj/project.pbxproj` — new files are invisible to Xcode builds (and thus to the app) until added.
+
+**BUT** — `xcodebuild` from terminal DOES pick them up if the source directory is configured with a wildcard or if the project uses folder references. The AI verifies builds with `xcodebuild`, so if it says "BUILD SUCCEEDED", the files are building. You may still need to add them to Xcode's navigator for IDE features (autocomplete, jump-to-definition) to work.
+
+**What to do:**
+1. Open `p2 app.xcodeproj` in Xcode
+2. In the Project Navigator (⌘1), check whether new files/folders listed in the commit message appear
+3. If a folder or file is missing: right-click the nearest parent group → "Add Files to 'p2 app'..." → navigate to the file → ensure "Add to target: p2 app" is checked → Add
+4. Newly added groups should appear under the correct `Core/` or `Features/` parent
+
+**New files added this session that may need Xcode linking:**
+- `Core/DesignSystem/DesignTokens.swift`
+- `Core/DesignSystem/GlassCard.swift`
+
+---
+
+### Running the App
+
+**On Simulator (easiest, no signing needed):**
+- In Xcode: select "iPad Pro 13-inch (M5)" or "iPad Pro 13-inch (M4)" simulator from the device picker → `Cmd+R`
+- Or via terminal (see "Xcode Build Command" below)
+
+**On Your Real iPad (Amit's iPad):**
+1. Connect iPad via USB
+2. In Xcode: select "Amit's iPad" from device picker
+3. First time: Xcode → Product → Destination → Manage Run Destinations → trust the device
+4. You may need to go to Settings → General → VPN & Device Management → trust the developer certificate
+5. `Cmd+R` to build and run
+
+**Checking camera + BLE on simulator vs real device:**
+- Camera: works on real iPad only — simulator shows a black preview (expected)
+- BLE / HandX device: real iPad only — simulator uses `MockHandXBLEManager` (auto-injected by AI code via `#if targetEnvironment(simulator)`)
+- CoreML inference: works on both, but Neural Engine only fires on real device
+
+---
+
+### After the AI Adds a New SwiftData Model
+
+When a new `@Model` class is added (e.g., `CurriculumRecord`):
+1. Open `p2_appApp.swift`
+2. Find the `.modelContainer(for: [...])` call
+3. Add the new model type to the array — e.g., `CurriculumRecord.self`
+4. If you skip this, the app will crash at launch with a SwiftData schema error
+
+---
+
+### After the AI Adds New Sound or Model Assets
+
+Sound files live at a symlinked path. If a new `.mp3` or `.mlpackage` appears but doesn't play/load:
+1. In Xcode Project Navigator: expand `p2 app` → look for the `sounds` or `models` group
+2. Right-click → "Add Files..." → add the new file → ensure "Copy items if needed" is **unchecked** (they're symlinked) and "Add to target: p2 app" is **checked**
+3. For `.mlpackage` models: same process, but under the `models` group
+
+---
+
+### After the AI Modifies `Info.plist` or Entitlements
+
+These files are sensitive — Xcode sometimes regenerates them. If the AI edits them and Xcode shows a merge conflict:
+1. Open `p2 app/p2 app.xcodeproj` → select the project in navigator → "Signing & Capabilities"
+2. Verify camera usage description, Bluetooth usage description, and any new keys are present
+3. If not: add them via the "+" button in the Info tab, or edit `Info.plist` directly in Xcode
+
+---
+
+### Switching Between AI Agents (Cline / Codex / Claude)
+
+All agents use the same `CLAUDE.md` (= `.clinerules` = `AGENTS.md`) as their master context. When switching:
+1. **Always start a new agent session by pasting the ⚡ NEXT AGENT PROMPT** block from the bottom of `CLAUDE.md`
+2. The agent will read CLAUDE.md first and know exactly what commit it's continuing from
+3. After the session, verify the agent updated the Session Audit and NEXT AGENT PROMPT sections and committed
+
+---
+
 ## Session Audit — Last Updated 2026-04-17
 
 ### Git State
