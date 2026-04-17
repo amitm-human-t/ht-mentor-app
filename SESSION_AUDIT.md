@@ -5,7 +5,7 @@
 
 ---
 
-## Last Updated: 2026-04-17
+## Last Updated: 2026-04-17 (logging update)
 
 ---
 
@@ -50,6 +50,7 @@ ac181e8  Phase 0+1.1: CLAUDE.md/AGENTS.md/.clinerules + full @Observable migrati
 | 3 | `TaskRunnerView` landscape layout, `RunnerHUDView`, `TrainerControlsPanel` | 3da5108 |
 | 4 | Results, Analysis, Leaderboards, Reports, UserManagement — all 5 Phase 4 screens | phase-4 head |
 | 5 | TipPositioning, RubberBand, SpringsSuturing, ManualScoring engines + AudioService callouts | phase-5 head |
+| 5.x | In-app log viewer + fileInfo wrapper for DEBUG file logging | phase-5 head |
 
 ### Key Files Created/Modified in Phase 4
 
@@ -106,6 +107,22 @@ All 4 task engines implemented + AudioService expanded + RunnerCoordinator wired
 ### Phase 6+7+8 — Polish ← START HERE
 
 ### Phase 6+7+8 — Polish
+
+**New files added this session:**
+```
+Modified: p2 app/Core/Diagnostics/AppLogger.swift
+  — Added fileInfo() wrapper (writes to file in DEBUG builds)
+  — Exposed DebugLogFile.url, .contents, .clear() for viewer
+
+New: p2 app/Features/Diagnostics/LogViewerView.swift
+  — Live log viewer (2s auto-refresh), color-coded by level
+  — Copy / Share / Clear toolbar actions
+
+Modified: p2 app/Features/Diagnostics/DiagnosticsView.swift
+  — Added "App Logs →" NavigationLink to LogViewerView
+```
+
+Usage: Hub → Diagnostics → App Logs. Or `./scripts/pull-logs.sh tail` for Claude to read.
 
 - **Audio:** 3-player `AudioService` (background + callout + effect)
 - **EnrichedRunPayload:** richer JSON in `RunSummaryRecord.summaryPayloadJSON`

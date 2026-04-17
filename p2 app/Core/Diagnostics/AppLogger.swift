@@ -80,15 +80,21 @@ final class DebugLogFile {
 // Use these instead of bare Logger calls when you want the message mirrored
 // to the pull-able log file (warnings, errors, faults).
 //
+// In DEBUG builds, fileInfo also writes to file so Claude can see runtime
+// context leading up to an error (not just the error itself).
+//
 // Example:
+//   AppLogger.runtime.fileInfo("Camera session started")
 //   AppLogger.runtime.fileError("Camera failed: \(error)")
 //   AppLogger.inference.fileWarning("Model not loaded for task \(id)")
 
 extension Logger {
-    private var categoryName: String {
-        // Extract category from the Logger's description
-        // Logger doesn't expose category directly — we use a fixed label per call site
-        "app"
+    /// Log at .info level AND write to the debug file (DEBUG builds only).
+    func fileInfo(_ message: String, category: String = "app") {
+        self.info("\(message, privacy: .public)")
+        #if DEBUG
+        AppLogger.writeToFile(level: "INFO", category: category, message: message)
+        #endif
     }
 
     /// Log at .warning level AND write to the debug file.
@@ -107,5 +113,20 @@ extension Logger {
     func fileFault(_ message: String, category: String = "app") {
         self.fault("\(message, privacy: .public)")
         AppLogger.writeToFile(level: "FAULT", category: category, message: message)
+    }
+}
+
+// MARK: - Log file URL (for share sheet / in-app viewer)
+
+extension DebugLogFile {
+    var url: URL { logURL }
+    var contents: String {
+        (try? String(contentsOf: logURL, encoding: .utf8)) ?? ""
+    }
+    func clear() {
+        queue.async { [weak self] in
+            guard let self else { return }
+            try? "".write(to: self.logURL, atomically: true, encoding: .utf8)
+        }
     }
 }
