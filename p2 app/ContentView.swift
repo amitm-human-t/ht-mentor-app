@@ -10,6 +10,8 @@ struct ContentView: View {
             HubView(appModel: appModel)
                 .navigationDestination(for: AppRoute.self) { route in
                     switch route {
+                    case .userChooser:
+                        UserChooserView(appModel: appModel)
                     case .taskPicker:
                         TaskPickerView(appModel: appModel)
                     case .taskRunner(let task):

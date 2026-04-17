@@ -17,6 +17,11 @@ final class UserRepository {
         modelContext.insert(user)
         try? modelContext.save()
     }
+
+    func delete(_ user: UserRecord) {
+        modelContext.delete(user)
+        try? modelContext.save()
+    }
 }
 
 @MainActor

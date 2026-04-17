@@ -58,6 +58,14 @@ struct TaskConfig: Hashable, Sendable {
     let task: TaskIdentifier
     let mode: TaskMode
     let targetCount: Int
+    let dominantHand: DominantHand
+
+    init(task: TaskIdentifier, mode: TaskMode, targetCount: Int, dominantHand: DominantHand = .right) {
+        self.task = task
+        self.mode = mode
+        self.targetCount = targetCount
+        self.dominantHand = dominantHand
+    }
 }
 
 struct TrainerAction: Hashable, Sendable {

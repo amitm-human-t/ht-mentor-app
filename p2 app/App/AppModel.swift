@@ -73,6 +73,24 @@ final class AppModel {
         path.append(.ble)
     }
 
+    func openUserChooser() {
+        path.append(.userChooser)
+    }
+
+    /// Commits `user` as the active trainee and persists the selection.
+    func selectUser(_ user: UserRecord) {
+        selectedUser = user
+        UserDefaultsStore.lastActiveUserID = user.id
+    }
+
+    /// Called from UserChooserView after a user is deleted.
+    func userWasDeleted(id: UUID) {
+        if selectedUser?.id == id {
+            selectedUser = nil
+            UserDefaultsStore.lastActiveUserID = nil
+        }
+    }
+
     func startTask(_ task: TaskDefinition) {
         guard canStartTasks else {
             openDiagnostics()
@@ -89,13 +107,27 @@ final class AppModel {
 
     private func seedDefaultUserIfNeeded() {
         guard let userRepository else { return }
-        if let existing = userRepository.fetchUsers().first {
-            selectedUser = existing
+        let users = userRepository.fetchUsers()
+
+        // Restore last active user by persisted ID
+        if let lastID = UserDefaultsStore.lastActiveUserID,
+           let match = users.first(where: { $0.id == lastID }) {
+            selectedUser = match
             return
         }
-        let user = UserRecord(displayName: "Default Trainee", dominantHandRawValue: DominantHand.right.rawValue)
+
+        // Fall back to first existing user
+        if let first = users.first {
+            selectedUser = first
+            UserDefaultsStore.lastActiveUserID = first.id
+            return
+        }
+
+        // First-run: create a default trainee
+        let user = UserRecord(displayName: "Trainee 1", dominantHandRawValue: DominantHand.right.rawValue)
         userRepository.insert(user)
         selectedUser = user
+        UserDefaultsStore.lastActiveUserID = user.id
     }
 
     var canStartTasks: Bool {
@@ -139,6 +171,7 @@ final class AppModel {
 }
 
 enum AppRoute: Hashable {
+    case userChooser
     case taskPicker
     case taskRunner(TaskDefinition)
     case diagnostics
