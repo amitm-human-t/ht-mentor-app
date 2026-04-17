@@ -5,8 +5,9 @@ struct TaskRunnerView: View {
     private let runnerCoordinator: RunnerCoordinator
     private let debugVideoFrameSource: DebugVideoFrameSource
     let taskDefinition: TaskDefinition
+
     @State private var selectedMode: TaskMode = .guided
-    @State private var isControlPanelVisible = false
+    @State private var isControlPanelVisible = true
 
     init(appModel: AppModel, taskDefinition: TaskDefinition) {
         self.appModel = appModel
@@ -16,50 +17,52 @@ struct TaskRunnerView: View {
     }
 
     var body: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .topTrailing) {
-                AppPreviewStageView(appModel: appModel, showsControls: false, compact: false)
-                    .ignoresSafeArea()
+        VStack(spacing: 0) {
+            // HUD strip
+            RunnerHUDView(coordinator: runnerCoordinator)
 
-                runnerOverlay
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            // Camera + optional trailing panel
+            HStack(spacing: 0) {
+                cameraArea
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 if isControlPanelVisible {
-                    HStack {
-                        Spacer(minLength: 0)
-                        controlBar
-                            .frame(width: max(320, min(400, proxy.size.width * 0.3)))
-                            .transition(.move(edge: .trailing).combined(with: .opacity))
-                    }
-                    .padding(20)
-                }
+                    Rectangle()
+                        .fill(Color.hxSurfaceBorder)
+                        .frame(width: 1)
+                        .ignoresSafeArea()
 
-                runnerChrome
+                    TrainerControlsPanel(
+                        appModel: appModel,
+                        taskDefinition: taskDefinition,
+                        selectedMode: $selectedMode,
+                        isVisible: $isControlPanelVisible
+                    )
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
             }
-            .background(
-                LinearGradient(
-                    colors: [Color.black, Color(red: 0.07, green: 0.08, blue: 0.1)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
+
+            // Bottom action bar
+            bottomBar
         }
-        .navigationTitle(taskDefinition.title)
-        .navigationBarTitleDisplayMode(.inline)
+        .background(Color.hxBackground.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
+        .animation(.hxPanel, value: isControlPanelVisible)
         .task {
             if runnerCoordinator.activeTask?.id != taskDefinition.id {
-                let preferredMode = taskDefinition.supportedModes.contains(.guided) ? TaskMode.guided : taskDefinition.supportedModes.first ?? .manual
+                let preferredMode = taskDefinition.supportedModes.contains(.guided)
+                    ? TaskMode.guided
+                    : taskDefinition.supportedModes.first ?? .manual
                 selectedMode = preferredMode
                 runnerCoordinator.prepare(task: taskDefinition, mode: preferredMode)
             }
         }
         .onDisappear {
-            if let summary = runnerCoordinator.buildSummary(), runnerCoordinator.stateMachine.phase == .finished {
+            if let summary = runnerCoordinator.buildSummary(),
+               runnerCoordinator.stateMachine.phase == .finished {
                 appModel.persistCompletedRun(summary: summary)
             }
         }
-        .animation(.easeInOut(duration: 0.22), value: isControlPanelVisible)
         .overlay {
             if let countdown = runnerCoordinator.disconnectCountdown {
                 BLEReconnectOverlay(countdown: countdown) {
@@ -70,171 +73,99 @@ struct TaskRunnerView: View {
         }
     }
 
-    private var runnerOverlay: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(runnerCoordinator.latestOutput.statusText)
-                .font(.headline)
-                .foregroundStyle(.white)
-            Text("Target: \(runnerCoordinator.latestOutput.targetInfo)")
-            Text("Score: \(runnerCoordinator.latestOutput.score)")
-            Text("Progress: \(runnerCoordinator.latestOutput.progress.completed)/\(runnerCoordinator.latestOutput.progress.total)")
-            Text("Input: \(runnerCoordinator.inputSource.title)")
-            if runnerCoordinator.inputSource == .debugVideo {
-                Text("Video: \(debugVideoFrameSource.selectedVideoURL?.lastPathComponent ?? "Not selected")")
-            }
-            Text("Detections: \(runnerCoordinator.latestInferenceStatus.taskDetectionCount)")
-            if !runnerCoordinator.latestInferenceStatus.taskOutputNames.isEmpty {
-                Text("Outputs: \(runnerCoordinator.latestInferenceStatus.taskOutputNames.joined(separator: ", "))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+    // MARK: - Camera Area
+
+    private var cameraArea: some View {
+        ZStack {
+            AppPreviewStageView(appModel: appModel, showsControls: false, compact: false)
+                .ignoresSafeArea()
+
+            // Failure banner (non-blocking, semi-transparent)
             if let failure = runnerCoordinator.currentFailure {
-                Text(failure.localizedDescription)
-                    .foregroundStyle(.orange)
+                VStack {
+                    HStack(spacing: HXSpacing.sm) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(Color.hxDanger)
+                        Text(failure.localizedDescription ?? "Error")
+                            .font(.hxCallout)
+                            .foregroundStyle(.white)
+                            .lineLimit(2)
+                    }
+                    .padding(.horizontal, HXSpacing.lg)
+                    .padding(.vertical, HXSpacing.sm)
+                    .background(Color.hxDanger.opacity(0.20), in: Capsule())
+                    .padding(.top, HXSpacing.xl)
+                    Spacer()
+                }
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .animation(.hxDefault, value: runnerCoordinator.currentFailure != nil)
             }
         }
-        .foregroundStyle(.white)
-        .padding()
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .padding()
     }
 
-    private var runnerChrome: some View {
-        VStack {
-            HStack(spacing: 12) {
-                Button {
+    // MARK: - Bottom Bar
+
+    private var bottomBar: some View {
+        HStack(spacing: HXSpacing.lg) {
+            // Controls toggle
+            Button {
+                withAnimation(.hxPanel) {
                     isControlPanelVisible.toggle()
-                } label: {
-                    Label(isControlPanelVisible ? "Hide Controls" : "Show Controls", systemImage: "slider.horizontal.3")
                 }
-                .buttonStyle(.borderedProminent)
-
-                Spacer()
-
-                Button {
-                    runnerCoordinator.finish()
-                } label: {
-                    Label("End Run", systemImage: "xmark.circle.fill")
-                }
-                .buttonStyle(.bordered)
+            } label: {
+                Label(
+                    isControlPanelVisible ? "Hide Controls" : "Controls",
+                    systemImage: "slider.horizontal.3"
+                )
+                .font(.hxCallout)
             }
-            .padding(20)
+            .buttonStyle(.glass)
 
             Spacer()
-        }
-    }
 
-    private var controlBar: some View {
-        VStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text("Runner Controls")
-                        .font(.title3.bold())
-                    Spacer()
-                    Button("Close") {
-                        isControlPanelVisible = false
-                    }
-                    .buttonStyle(.bordered)
+            // Quick run controls
+            let phase = runnerCoordinator.stateMachine.phase
+
+            if phase == .idle || phase == .error || phase == .finished {
+                Button {
+                    Task { await runnerCoordinator.start() }
+                } label: {
+                    Label("Start", systemImage: "play.fill")
+                        .font(.hxCallout)
                 }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Preview Source")
-                    .font(.headline)
-
-                Picker("Source", selection: inputSourceBinding) {
-                    ForEach(RunnerCoordinator.InputSource.allCases) { source in
-                        Text(source.title).tag(source)
-                    }
-                }
-                .pickerStyle(.segmented)
-
-                if runnerCoordinator.inputSource == .debugVideo {
-                    Picker("Embedded Video", selection: embeddedVideoSelection) {
-                        ForEach(appModel.embeddedVideosForCurrentTask) { video in
-                            Text(video.name).tag(Optional(video.url))
-                        }
-                    }
-                    .pickerStyle(.menu)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-
-            Picker("Mode", selection: $selectedMode) {
-                ForEach(taskDefinition.supportedModes, id: \.self) { mode in
-                    Text(mode.rawValue.capitalized).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .onChange(of: selectedMode) { _, newValue in
-                runnerCoordinator.prepare(task: taskDefinition, mode: newValue)
-            }
-
-            HStack {
-                Button("Start") {
-                    Task {
-                        await runnerCoordinator.start()
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-
-                Button("Pause") {
+                .buttonStyle(.glassProminent)
+                .tint(Color.hxCyan)
+            } else if phase == .running {
+                Button {
                     runnerCoordinator.pause()
+                } label: {
+                    Label("Pause", systemImage: "pause.fill")
+                        .font(.hxCallout)
                 }
-                .buttonStyle(.bordered)
-
-                Button("Resume") {
+                .buttonStyle(.glass)
+            } else if phase == .paused {
+                Button {
                     runnerCoordinator.resume()
+                } label: {
+                    Label("Resume", systemImage: "play.fill")
+                        .font(.hxCallout)
                 }
-                .buttonStyle(.bordered)
-
-                Button("Reset") {
-                    runnerCoordinator.reset()
-                }
-                .buttonStyle(.bordered)
-
-                Button("Finish") {
-                    runnerCoordinator.finish()
-                }
-                .buttonStyle(.bordered)
+                .buttonStyle(.glassProminent)
+                .tint(Color.hxSuccess)
             }
 
-            HStack {
-                Button("Skip Target") {
-                    runnerCoordinator.registerTrainerAction(.skipTarget)
-                }
-                Button("Mark Success") {
-                    runnerCoordinator.registerTrainerAction(.markSuccess)
-                }
-                Button("Mark Failure") {
-                    runnerCoordinator.registerTrainerAction(.markFailure)
-                }
+            Button {
+                runnerCoordinator.finish()
+            } label: {
+                Label("End Run", systemImage: "xmark.circle.fill")
+                    .font(.hxCallout)
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.glass)
+            .tint(Color.hxDanger)
+            .disabled(phase == .idle)
         }
-        .padding()
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-    }
-
-    private var inputSourceBinding: Binding<RunnerCoordinator.InputSource> {
-        Binding(
-            get: { runnerCoordinator.inputSource },
-            set: { runnerCoordinator.inputSource = $0 }
-        )
-    }
-
-    private var embeddedVideoSelection: Binding<URL?> {
-        Binding(
-            get: { debugVideoFrameSource.selectedVideoURL },
-            set: { newValue in
-                guard let newValue else { return }
-                debugVideoFrameSource.selectVideo(url: newValue)
-            }
-        )
+        .padding(.horizontal, HXSpacing.xl)
+        .padding(.vertical, HXSpacing.md)
+        .background(.ultraThinMaterial)
     }
 }

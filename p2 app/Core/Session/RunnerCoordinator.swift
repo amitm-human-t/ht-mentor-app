@@ -52,7 +52,7 @@ final class RunnerCoordinator {
     private let permissionCenter: PermissionCenter
     private let frameBus: CameraFrameBus
     private var taskEngine: any TaskEngine = PlaceholderTaskEngine()
-    private var taskStartDate: Date?
+    private(set) var taskStartDate: Date?
     private var trainerActions: [TrainerAction] = []
     private var runLoopTask: Task<Void, Never>?
     private var reconnectCountdownTask: Task<Void, Never>?
@@ -230,6 +230,9 @@ final class RunnerCoordinator {
         reconnectCountdownTask = nil
         disconnectCountdown = nil
     }
+
+    /// Convenience for HUD and panel views — avoids leaking `bleManager` reference.
+    var bleConnected: Bool { bleManager.connectionState == .connected }
 
     func registerTrainerAction(_ kind: TrainerAction.Kind) {
         trainerActions.append(.init(kind: kind, timestamp: Date().timeIntervalSinceReferenceDate))
