@@ -116,6 +116,13 @@ final class CameraService: NSObject {
                         videoOutput.setSampleBufferDelegate(sampleBufferDelegate, queue: outputQueue)
                         if session.outputs.isEmpty, session.canAddOutput(videoOutput) {
                             session.addOutput(videoOutput)
+                            // App is landscape-only. Set rotation angle on the output connection
+                            // so pixel buffers are delivered in landscape-right orientation.
+                            // Reference: videoRotationAngle=0 for landscapeRight (mentor tests app).
+                            if let connection = videoOutput.connection(with: .video),
+                               connection.isVideoRotationAngleSupported(0) {
+                                connection.videoRotationAngle = 0
+                            }
                         }
 
                         session.commitConfiguration()

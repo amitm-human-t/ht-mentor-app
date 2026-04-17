@@ -130,7 +130,11 @@ actor CoreMLModelRegistry {
             request.imageCropAndScaleOption = .scaleFill
 
             do {
-                let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .up, options: [:])
+                // App is always landscape-right. Pixel buffers arrive unrotated from
+                // AVCaptureVideoDataOutput (videoRotationAngle=0), so we tell Vision
+                // the correct EXIF orientation (.downMirrored) so it can normalize the
+                // image before running the model. Reference: mentor tests CameraViewController.
+                let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .downMirrored, options: [:])
                 try handler.perform([request])
             } catch {
                 continuation.resume(throwing: error)

@@ -34,6 +34,10 @@ struct CameraPreviewView: UIViewRepresentable {
         let view = PreviewHostView()
         view.previewLayer.videoGravity = .resizeAspectFill
         view.previewLayer.session = session
+        // App is landscape-only. Ensure the preview connection uses the correct
+        // landscape-right rotation so that layerRectConverted returns accurate
+        // view-space coordinates for the detection box overlay.
+        setLandscapeRotation(on: view.previewLayer)
         coordinate.hostView = view
         AppLogger.runtime.debug("Created camera preview host view")
         return view
@@ -41,7 +45,14 @@ struct CameraPreviewView: UIViewRepresentable {
 
     func updateUIView(_ uiView: PreviewHostView, context: Context) {
         uiView.previewLayer.session = session
+        setLandscapeRotation(on: uiView.previewLayer)
         coordinate.hostView = uiView
+    }
+
+    private func setLandscapeRotation(on layer: AVCaptureVideoPreviewLayer) {
+        guard let connection = layer.connection,
+              connection.isVideoRotationAngleSupported(0) else { return }
+        connection.videoRotationAngle = 0
     }
 }
 
