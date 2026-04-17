@@ -51,6 +51,7 @@ final class RunnerCoordinator {
     private let modelRegistry: CoreMLModelRegistry
     private let permissionCenter: PermissionCenter
     private let frameBus: CameraFrameBus
+    private let audioService: AudioService?
     private var taskEngine: any TaskEngine = PlaceholderTaskEngine()
     private(set) var taskStartDate: Date?
     private var trainerActions: [TrainerAction] = []
@@ -65,7 +66,8 @@ final class RunnerCoordinator {
         bleManager: any HandXBLEProvider,
         modelRegistry: CoreMLModelRegistry,
         permissionCenter: PermissionCenter,
-        frameBus: CameraFrameBus
+        frameBus: CameraFrameBus,
+        audioService: AudioService? = nil
     ) {
         self.cameraService = cameraService
         self.debugVideoFrameSource = debugVideoFrameSource
@@ -73,6 +75,7 @@ final class RunnerCoordinator {
         self.modelRegistry = modelRegistry
         self.permissionCenter = permissionCenter
         self.frameBus = frameBus
+        self.audioService = audioService
     }
 
     func prepare(task: TaskDefinition, mode: TaskMode) {
@@ -322,15 +325,25 @@ final class RunnerCoordinator {
             )
         )
         latestInferenceStatus = inputs.inferenceInfo
-        latestOutput = taskEngine.step(inputs: inputs)
+        let output = taskEngine.step(inputs: inputs)
+
+        // Dispatch audio events emitted by the engine this tick
+        for event in output.events where event.name == "audio_callout" {
+            if let dir = event.payload["dir"], let file = event.payload["file"] {
+                audioService?.playCallout(dir: dir, file: file)
+            }
+        }
+
+        latestOutput = output
     }
 
     private func engine(for task: TaskIdentifier) -> any TaskEngine {
         switch task {
-        case .keyLock:
-            return KeyLockTaskEngine()
-        case .tipPositioning, .rubberBand, .springsSuturing, .manualScoring:
-            return PlaceholderTaskEngine()
+        case .keyLock:          return KeyLockTaskEngine()
+        case .tipPositioning:   return TipPositioningTaskEngine()
+        case .rubberBand:       return RubberBandTaskEngine()
+        case .springsSuturing:  return SpringsSuturingTaskEngine()
+        case .manualScoring:    return ManualScoringEngine()
         }
     }
 

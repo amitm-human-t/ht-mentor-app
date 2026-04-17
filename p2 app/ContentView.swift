@@ -16,6 +16,16 @@ struct ContentView: View {
                         TaskPickerView(appModel: appModel)
                     case .taskRunner(let task):
                         TaskRunnerView(appModel: appModel, taskDefinition: task)
+                    case .results(let summary):
+                        ResultsView(summary: summary, appModel: appModel)
+                    case .analysis(let runID):
+                        AnalysisView(runID: runID, appModel: appModel)
+                    case .leaderboards:
+                        LeaderboardsView(appModel: appModel)
+                    case .reports:
+                        ReportsView(appModel: appModel)
+                    case .userManagement:
+                        UserManagementView(appModel: appModel)
                     case .diagnostics:
                         DiagnosticsView(diagnostics: appModel.diagnostics)
                     case .permissions:
