@@ -1,170 +1,330 @@
 import SwiftUI
 
+// MARK: - HubView
+
 struct HubView: View {
     let appModel: AppModel
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                header
-                previewCard
-                deviceSupportCard
-                diagnosticsCard
-                permissionCard
-                quickActions
-            }
-            .padding(24)
+        HStack(spacing: 0) {
+            leftPanel
+                .frame(width: 288)
+
+            Rectangle()
+                .fill(Color.hxSurfaceBorder)
+                .frame(width: 1)
+                .ignoresSafeArea()
+
+            rightContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .navigationTitle("HandX Training Hub")
+        .background(Color.hxBackground.ignoresSafeArea())
+        .toolbar(.hidden, for: .navigationBar)
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("iPad runtime bootstrap")
-                .font(.largeTitle.bold())
-            Text("Camera, BLE, models, and runner state are wired as the first milestone shell.")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-        }
-    }
+    // MARK: - Left Panel
 
-    private var diagnosticsCard: some View {
-        StatusCard(
-            title: "Startup diagnostics",
-            subtitle: appModel.diagnostics.isHealthy ? "All required startup assets were found." : "\(appModel.diagnostics.missingEntries.count) bundled assets are missing. Task start is blocked until they are fixed.",
-            accent: appModel.diagnostics.isHealthy ? .green : .orange
-        ) {
-            Button("Open Diagnostics") {
-                appModel.openDiagnostics()
-            }
-            .buttonStyle(.borderedProminent)
-        }
-    }
+    private var leftPanel: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            panelHeader
+            Divider().background(Color.hxSurfaceBorder)
 
-    private var previewCard: some View {
-        StatusCard(
-            title: "Preview",
-            subtitle: "Rear-camera or embedded debug video preview with live overlay status.",
-            accent: appModel.runnerCoordinator.inputSource == .liveCamera ? .green : .blue
-        ) {
-            VStack(alignment: .leading, spacing: 12) {
-                AppPreviewStageView(appModel: appModel, showsControls: true, compact: true)
-                    .frame(height: 220)
-
-                Text(previewStatusText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: HXSpacing.lg) {
+                    userChip
+                    handXWidget
+                    cameraPreviewWidget
+                    systemStatusWidget
+                }
+                .padding(HXSpacing.lg)
             }
         }
+        .background(Color.hxSurface.ignoresSafeArea())
     }
 
-    private var deviceSupportCard: some View {
-        StatusCard(
-            title: appModel.deviceSupport.title,
-            subtitle: "\(appModel.deviceSupport.message)\nIdentifier: \(appModel.deviceSupport.hardwareIdentifier)",
-            accent: appModel.deviceSupport.level == .supported ? .green : .orange
-        ) {
-            EmptyView()
-        }
-    }
-
-    private var permissionCard: some View {
-        StatusCard(
-            title: "Permissions",
-            subtitle: "Camera: \(appModel.permissionCenter.snapshot.camera.rawValue) • Bluetooth: \(appModel.permissionCenter.snapshot.bluetooth.rawValue)",
-            accent: appModel.permissionCenter.snapshot.camera == .authorized ? .green : .orange
-        ) {
-            Button("Permission Center") {
-                appModel.openPermissions()
+    private var panelHeader: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .center, spacing: 0) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("HandX")
+                        .font(.hxTitle2)
+                        .foregroundStyle(Color.hxCyan)
+                    Text("Training Hub")
+                        .font(.hxCallout)
+                        .foregroundStyle(.white.opacity(0.55))
+                }
+                Spacer()
+                Button {
+                    appModel.openBLEConsole()
+                } label: {
+                    Image(systemName: "antenna.radiowaves.left.and.right")
+                        .font(.callout)
+                        .foregroundStyle(Color.hxSurfaceBorder)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.bordered)
         }
+        .padding(.horizontal, HXSpacing.lg)
+        .padding(.top, HXSpacing.xxl)
+        .padding(.bottom, HXSpacing.lg)
     }
 
-    private var quickActions: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Quick Actions")
-                .font(.title2.bold())
-
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 16)], spacing: 16) {
-                ActionTile(
-                    title: "Start Task",
-                    subtitle: appModel.canStartTasks ? "Pick a task and mode" : "Task start blocked until diagnostics are green"
-                ) {
-                    if appModel.canStartTasks {
-                        appModel.openTaskPicker()
-                    } else {
-                        appModel.openDiagnostics()
+    private var userChip: some View {
+        Button {
+            appModel.openUserChooser()
+        } label: {
+            HStack(spacing: HXSpacing.md) {
+                AvatarView(
+                    name: appModel.selectedUser?.displayName ?? "?",
+                    size: 42
+                )
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(appModel.selectedUser?.displayName ?? "No Trainee")
+                        .font(.hxHeadline)
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                    HStack(spacing: 4) {
+                        if let hand = appModel.selectedUser.flatMap({
+                            DominantHand(rawValue: $0.dominantHandRawValue)
+                        }) {
+                            Text("\(hand.rawValue.capitalized) hand")
+                                .font(.hxCaption)
+                                .foregroundStyle(.white.opacity(0.45))
+                        }
+                        Text("· Tap to change")
+                            .font(.hxCaption)
+                            .foregroundStyle(Color.hxCyan.opacity(0.8))
                     }
                 }
-                ActionTile(title: "HandX Console", subtitle: appModel.bleManager.statusText) {
-                    appModel.openBLEConsole()
-                }
-                ActionTile(title: "Task Runner Shell", subtitle: "Open directly into KeyLock") {
-                    appModel.runnerCoordinator.prepare(task: TaskDefinition.all[0], mode: .guided)
-                    appModel.startTask(TaskDefinition.all[0])
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption2.bold())
+                    .foregroundStyle(Color.hxSurfaceBorder)
+            }
+            .padding(HXSpacing.md)
+            .background(Color.hxSurfaceRaised, in: RoundedRectangle(cornerRadius: HXRadius.md))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var handXWidget: some View {
+        VStack(alignment: .leading, spacing: HXSpacing.sm) {
+            sectionLabel("HandX Device")
+
+            HStack(spacing: HXSpacing.sm) {
+                StatusDot(color: bleStatusColor, isActive: appModel.bleManager.connectionState == .connected)
+                Text(appModel.bleManager.statusText)
+                    .font(.hxCallout)
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                Spacer()
+                if appModel.bleManager.connectionState == .disconnected || appModel.bleManager.connectionState == .error {
+                    Button("Scan") {
+                        appModel.bleManager.startScan()
+                    }
+                    .font(.hxCaption)
+                    .foregroundStyle(Color.hxCyan)
                 }
             }
         }
     }
 
-    private var previewStatusText: String {
-        switch appModel.runnerCoordinator.inputSource {
-        case .liveCamera:
-            return "Live camera preview is active from the single shared camera service."
-        case .debugVideo:
-            return "Embedded debug video: \(appModel.debugVideoFrameSource.selectedVideoURL?.lastPathComponent ?? "Not selected")"
+    private var bleStatusColor: Color {
+        switch appModel.bleManager.connectionState {
+        case .connected:                 return Color.hxSuccess
+        case .scanning, .connecting:     return Color.hxAmber
+        case .disconnected, .error:      return Color.hxDanger
         }
     }
-}
 
-private struct ActionTile: View {
-    let title: String
-    let subtitle: String
-    let action: () -> Void
+    private var cameraPreviewWidget: some View {
+        VStack(alignment: .leading, spacing: HXSpacing.sm) {
+            sectionLabel("Preview")
+            AppPreviewStageView(appModel: appModel, showsControls: false, compact: true)
+                .frame(height: 148)
+                .clipShape(RoundedRectangle(cornerRadius: HXRadius.md))
+        }
+    }
 
-    var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text(title)
-                    .font(.headline)
-                Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 0)
+    private var systemStatusWidget: some View {
+        HStack(spacing: HXSpacing.sm) {
+            Circle()
+                .fill(appModel.diagnostics.isHealthy ? Color.hxSuccess : Color.hxWarning)
+                .frame(width: 8, height: 8)
+            Text(appModel.diagnostics.isHealthy
+                 ? "System ready"
+                 : "\(appModel.diagnostics.missingEntries.count) issues found")
+                .font(.hxCallout)
+                .foregroundStyle(.white)
+            Spacer()
+            if !appModel.diagnostics.isHealthy {
+                Button("Fix") { appModel.openDiagnostics() }
+                    .font(.hxCaption)
+                    .foregroundStyle(Color.hxWarning)
             }
-            .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
-            .padding()
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        }
+        .padding(HXSpacing.md)
+        .background(Color.hxSurfaceRaised, in: RoundedRectangle(cornerRadius: HXRadius.sm))
+    }
+
+    @ViewBuilder
+    private func sectionLabel(_ text: String) -> some View {
+        Text(text.uppercased())
+            .font(.hxCaption)
+            .foregroundStyle(.white.opacity(0.40))
+            .kerning(0.5)
+    }
+
+    // MARK: - Right Content
+
+    private var rightContent: some View {
+        ScrollView(showsIndicators: false) {
+            GlassEffectContainer(spacing: 16) {
+                VStack(spacing: 16) {
+                    // Top row: Start Task (large) + Curriculum / Leaderboards stacked
+                    HStack(alignment: .top, spacing: 16) {
+                        startTaskCard
+                            .frame(maxWidth: .infinity)
+
+                        VStack(spacing: 16) {
+                            HubActionCard(
+                                title: "Curriculum",
+                                subtitle: "Structured programs",
+                                icon: "list.clipboard.fill",
+                                tint: Color.hxCyan,
+                                action: { }   // Phase 4
+                            )
+                            HubActionCard(
+                                title: "Leaderboards",
+                                subtitle: "Top scores & rankings",
+                                icon: "trophy.fill",
+                                tint: Color.hxAmber,
+                                action: { }   // Phase 4
+                            )
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+
+                    // Bottom row: Reports | Analysis | User Mgmt
+                    HStack(spacing: 16) {
+                        HubActionCard(
+                            title: "Reports",
+                            subtitle: "History & trends",
+                            icon: "chart.bar.xaxis.ascending",
+                            tint: Color.hxSuccess,
+                            action: { }   // Phase 4
+                        )
+                        HubActionCard(
+                            title: "Analysis",
+                            subtitle: "Run breakdown",
+                            icon: "waveform.path.ecg",
+                            tint: Color.hxCyan,
+                            action: { }   // Phase 4
+                        )
+                        HubActionCard(
+                            title: "Trainees",
+                            subtitle: "Manage profiles",
+                            icon: "person.2.fill",
+                            tint: Color.hxAmber,
+                            action: { appModel.openUserChooser() }
+                        )
+                    }
+                }
+                .padding(24)
+            }
+        }
+        .background(Color.hxBackground)
+    }
+
+    // MARK: - Start Task Card
+
+    private var startTaskCard: some View {
+        Button {
+            if appModel.canStartTasks {
+                appModel.openTaskPicker()
+            } else {
+                appModel.openDiagnostics()
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 0) {
+                Spacer()
+
+                Image(systemName: appModel.canStartTasks ? "play.circle.fill" : "exclamationmark.triangle.fill")
+                    .font(.system(size: 48))
+                    .foregroundStyle(appModel.canStartTasks ? Color.hxCyan : Color.hxWarning)
+                    .padding(.bottom, HXSpacing.md)
+
+                Text("Start Task")
+                    .font(.hxTitle2)
+                    .foregroundStyle(.white)
+
+                Text(appModel.canStartTasks
+                     ? "Pick a task and mode to begin your training session."
+                     : appModel.taskStartBlockReason ?? "Diagnostics required before starting.")
+                    .font(.hxBody)
+                    .foregroundStyle(appModel.canStartTasks ? .white.opacity(0.65) : Color.hxWarning)
+                    .lineLimit(3)
+                    .padding(.top, 4)
+
+                Spacer()
+
+                HStack {
+                    Spacer()
+                    Image(systemName: "arrow.right.circle")
+                        .font(.title2)
+                        .foregroundStyle(Color.hxCyan.opacity(appModel.canStartTasks ? 0.7 : 0.3))
+                }
+            }
+            .padding(HXSpacing.xl)
+            .frame(maxWidth: .infinity, minHeight: 240, maxHeight: .infinity, alignment: .leading)
+            .background(
+                LinearGradient(
+                    colors: [
+                        Color.hxCyan.opacity(appModel.canStartTasks ? 0.13 : 0.04),
+                        Color.clear
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .glassEffect(.regular.interactive(), in: .rect(cornerRadius: HXRadius.lg))
         }
         .buttonStyle(.plain)
     }
 }
 
-struct StatusCard<Actions: View>: View {
+// MARK: - HubActionCard
+
+private struct HubActionCard: View {
     let title: String
     let subtitle: String
-    let accent: Color
-    @ViewBuilder let actions: Actions
+    let icon: String
+    let tint: Color
+    let action: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Circle()
-                    .fill(accent)
-                    .frame(width: 12, height: 12)
-                Text(title)
-                    .font(.title3.bold())
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: HXSpacing.sm) {
+                Image(systemName: icon)
+                    .font(.title2)
+                    .foregroundStyle(tint)
+
+                Spacer(minLength: HXSpacing.sm)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.hxHeadline)
+                        .foregroundStyle(.white)
+                    Text(subtitle)
+                        .font(.hxCaption)
+                        .foregroundStyle(.white.opacity(0.50))
+                        .lineLimit(2)
+                }
             }
-            Text(subtitle)
-                .foregroundStyle(.secondary)
-            actions
+            .padding(HXSpacing.lg)
+            .frame(maxWidth: .infinity, minHeight: 110, alignment: .topLeading)
+            .glassEffect(.regular.interactive(), in: .rect(cornerRadius: HXRadius.lg))
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color(uiColor: .secondarySystemBackground))
-        )
+        .buttonStyle(.plain)
     }
 }
