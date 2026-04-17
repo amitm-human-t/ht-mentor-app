@@ -299,3 +299,100 @@ Located at `sounds/` (symlinked into Xcode):
 - `backgrounds/`: background1, background2 (loop)
 - `keylock/`: 1.mp3–13.mp3 (target callouts)
 - `tip_positioning/`: l1–l7.mp3 (left hand), r1–r7.mp3 (right hand)
+
+---
+
+## Session Audit — Last Updated 2026-04-17
+
+### Git State
+
+Branch: `claude-branch` (off `main`)
+Commits so far:
+- `8b429a1` — Initial commit (project skeleton)
+- `ac181e8` — Phase 0+1.1: CLAUDE.md/AGENTS.md/.clinerules + full @Observable migration
+- `302d582` — Phase 1.2+1.5+1.6: Design system, coordinate fix, overlay colors
+
+Current build: **0 errors** on iPad Pro 13-inch (M5) simulator iOS 26.4
+
+### Completed Phases
+
+| Phase | What was done |
+|-------|--------------|
+| 0 | Created CLAUDE.md, .clinerules, AGENTS.md at project root |
+| 1.1 | Migrated AppModel, RunnerCoordinator, HandXBLEManager, CameraService, DebugVideoFrameSource, PermissionCenter, AudioService from ObservableObject to @Observable. Updated all views. |
+| 1.2 | PreviewCoordinate class bridges PreviewHostView to SwiftUI. PreviewHostView.convertYOLORect() uses proper metadata flip + layerRectConverted (validated from mentor-tests reference app at `/Users/amitm/tk_models/ipad app/mentor tests/`). CameraPreviewView accepts PreviewCoordinate. PreviewOverlayView uses live converter. |
+| 1.5 | Core/DesignSystem/DesignTokens.swift: hxCyan/hxAmber/hxSuccess/hxDanger palette, SF Pro Rounded scale, SF Mono, HXRadius/HXSpacing, spring animation presets. Core/DesignSystem/GlassCard.swift: .glassCard() / .interactiveGlassCard() / .hudGlass() / StatusDot. |
+| 1.6 | OverlayColor enum in TaskContracts.swift with swiftUIColor mapping. OverlayElement.box now carries OverlayColor (default .cyan). PreviewOverlayView uses design tokens throughout. |
+
+### NOT YET DONE — Pick up here in next session
+
+Continue in this order:
+
+**Phase 1.3+1.4 — BLE Mock + Disconnect Policy**
+- Create `Core/BLE/HandXBLEProvider.swift` — protocol matching HandXBLEManager's interface
+- Create `Core/BLE/MockHandXBLEManager.swift` — simulates connected + animating sample values
+- `#if targetEnvironment(simulator)` branch in `AppModel.swift`
+- Add `disconnectCountdown: Int?` to `RunnerCoordinator` 
+- Disconnect during `.lockedSprint` + `.running`: pause, start 10s countdown Task
+- Create `Features/TaskRunner/BLEReconnectOverlay.swift`
+
+**Phase 2.1 — UserChooserView**
+- New screen with `.userChooser` route
+- Landscape split: left panel (280pt) = user list, right panel = create/edit form
+- Avatar from SF Symbol initials, dominant hand picker, save button
+- Auto-select last active user (UserDefaults.lastActiveUserID)
+
+**Phase 2.2+2.3 — Hub Redesign + TaskPicker card grid**
+- Hub: GlassEffectContainer, left-panel (user chip + HandX dot + mini camera preview) + 2×3 action card grid
+- TaskPicker: LazyVGrid card layout, .glassEffect(), zoom transitions via @Namespace
+
+**Phase 3 — TaskRunner Full Overhaul**
+- RunnerHUDView.swift: score with .contentTransition(.numericText), progress ring, timer, BLE dot
+- TrainerControlsPanel.swift: DisclosureGroup sections (Run Controls / Trainer Actions / Debug / HandX / Video)
+- Landscape layout: camera feed (flexible) + panel (320pt collapsible trailing)
+- BLEReconnectOverlay.swift (from Phase 1.4)
+
+**Phase 4 — Results/Analysis/Leaderboards/Reports/UserManagement**
+Phase 5 — Task Engines (TipPositioning, RubberBand, SpringsSuturing, Manual)
+Phase 6+7+8 — Audio expansion, EnrichedRunPayload, AsyncStream inference workers
+
+### Xcode Build Command
+
+```bash
+/Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild build \
+  -project "/Users/amitm/tk_models/ipad app/p2 app/p2 app/p2 app.xcodeproj" \
+  -scheme "p2 app" \
+  -destination "platform=iOS Simulator,name=iPad Pro 13-inch (M5),OS=26.4" \
+  -configuration Debug
+```
+
+### Key References
+
+- Coordinate fix pattern: `/Users/amitm/tk_models/ipad app/mentor tests/mentor model tests/mentor model tests/CameraViewController.swift` line 726–733
+- Plan file: `/Users/amitm/.claude/plans/staged-inventing-kite.md` (full 10-phase plan)
+- Memory files: `/Users/amitm/.claude/projects/-Users-amitm-tk-models-ipad-app-p2-app-p2-app-p2-app/memory/`
+
+### Design Token Quick Reference
+
+```swift
+// Colors
+Color.hxCyan       // primary accent (electric cyan)
+Color.hxAmber      // HandX device status
+Color.hxSuccess    // target reached
+Color.hxDanger     // failure/drop
+Color.hxWarning    // caution
+
+// Fonts
+Font.hxDisplay     // 52pt bold rounded
+Font.hxTitle1      // 32pt bold rounded
+Font.hxHeadline    // 17pt semibold rounded
+Font.hxBody        // 15pt regular rounded
+Font.hxMonoDisplay // 48pt bold mono (scores)
+Font.hxMonoBody    // 14pt mono (telemetry)
+
+// Modifiers
+.glassCard()                         // standard glass card
+.interactiveGlassCard()              // tappable card with press state
+.hudGlass()                          // capsule HUD strip
+StatusDot(color:, isActive:)         // animated BLE/camera dot
+```
