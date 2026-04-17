@@ -403,50 +403,51 @@ Commits so far:
 - `8b429a1` — Initial commit (project skeleton)
 - `ac181e8` — Phase 0+1.1: CLAUDE.md/AGENTS.md/.clinerules + full @Observable migration
 - `302d582` — Phase 1.2+1.5+1.6: Design system, coordinate fix, overlay colors
+- `c29a7db` — CLAUDE.md session audit + handoff instructions
+- `7d19e96` — Next-agent prompt block added
+- `1bcf070` — Human Instructions + pre-commit hook (first version)
+- `6d64e6b` — Bidirectional hook + .githooks/ tracked directory
+- `7e37235` — Phase 1.3+1.4: BLE mock + disconnect policy
 
-Current build: **0 errors** on iPad Pro 13-inch (M5) simulator iOS 26.4
+Current build: **0 errors** (generic/platform=iOS Simulator)
 
 ### Completed Phases
 
 | Phase | What was done |
 |-------|--------------|
 | 0 | Created CLAUDE.md, .clinerules, AGENTS.md at project root |
-| 1.1 | Migrated AppModel, RunnerCoordinator, HandXBLEManager, CameraService, DebugVideoFrameSource, PermissionCenter, AudioService from ObservableObject to @Observable. Updated all views. |
-| 1.2 | PreviewCoordinate class bridges PreviewHostView to SwiftUI. PreviewHostView.convertYOLORect() uses proper metadata flip + layerRectConverted (validated from mentor-tests reference app at `/Users/amitm/tk_models/ipad app/mentor tests/`). CameraPreviewView accepts PreviewCoordinate. PreviewOverlayView uses live converter. |
-| 1.5 | Core/DesignSystem/DesignTokens.swift: hxCyan/hxAmber/hxSuccess/hxDanger palette, SF Pro Rounded scale, SF Mono, HXRadius/HXSpacing, spring animation presets. Core/DesignSystem/GlassCard.swift: .glassCard() / .interactiveGlassCard() / .hudGlass() / StatusDot. |
-| 1.6 | OverlayColor enum in TaskContracts.swift with swiftUIColor mapping. OverlayElement.box now carries OverlayColor (default .cyan). PreviewOverlayView uses design tokens throughout. |
+| 1.1 | Full @Observable migration (7 classes, all view files) |
+| 1.2 | PreviewCoordinate + layerRectConverted coord fix (mentor-tests validated) |
+| 1.3 | HandXBLEProvider protocol + MockHandXBLEManager (animated, simulator-injected) |
+| 1.4 | BLE disconnect policy: disconnectCountdown + 10s Task + BLEReconnectOverlay |
+| 1.5 | DesignTokens.swift + GlassCard.swift (full design system) |
+| 1.6 | OverlayColor enum + OverlayElement.box carries color |
 
 ### NOT YET DONE — Pick up here in next session
 
-Continue in this order:
-
-**Phase 1.3+1.4 — BLE Mock + Disconnect Policy**
-- Create `Core/BLE/HandXBLEProvider.swift` — protocol matching HandXBLEManager's interface
-- Create `Core/BLE/MockHandXBLEManager.swift` — simulates connected + animating sample values
-- `#if targetEnvironment(simulator)` branch in `AppModel.swift`
-- Add `disconnectCountdown: Int?` to `RunnerCoordinator` 
-- Disconnect during `.lockedSprint` + `.running`: pause, start 10s countdown Task
-- Create `Features/TaskRunner/BLEReconnectOverlay.swift`
-
-**Phase 2.1 — UserChooserView**
-- New screen with `.userChooser` route
-- Landscape split: left panel (280pt) = user list, right panel = create/edit form
-- Avatar from SF Symbol initials, dominant hand picker, save button
-- Auto-select last active user (UserDefaults.lastActiveUserID)
+**Phase 2.1 — UserChooserView** ← START HERE
+- Route: add `.userChooser` to `AppRoute` in `AppModel.swift`
+- New file: `Features/UserChooser/UserChooserView.swift`
+- Landscape split: left panel (280pt, scrollable) = user list with search
+- Right panel: create/edit form — displayName TextField, DominantHand picker, avatar grid (SF Symbol initials avatar), Save button
+- `UserDefaults.lastActiveUserID` auto-selects last trainee on launch
+- Add `dominantHand: DominantHand` to `TaskConfig` in `TaskContracts.swift`
+- Skills: `ios-ai-ml-skills:swiftui-layout-components`, `ios-ai-ml-skills:swiftdata`
 
 **Phase 2.2+2.3 — Hub Redesign + TaskPicker card grid**
-- Hub: GlassEffectContainer, left-panel (user chip + HandX dot + mini camera preview) + 2×3 action card grid
-- TaskPicker: LazyVGrid card layout, .glassEffect(), zoom transitions via @Namespace
+- Hub: `GlassEffectContainer`, left-panel (user chip + HandX dot + mini camera preview) + 2×3 action card grid
+- TaskPicker: `LazyVGrid` card layout, `.interactiveGlassCard()`, zoom transitions via `@Namespace`
+- Skills: `ios-ai-ml-skills:swiftui-liquid-glass`, `ios-ai-ml-skills:swiftui-layout-components`
 
 **Phase 3 — TaskRunner Full Overhaul**
-- RunnerHUDView.swift: score with .contentTransition(.numericText), progress ring, timer, BLE dot
-- TrainerControlsPanel.swift: DisclosureGroup sections (Run Controls / Trainer Actions / Debug / HandX / Video)
-- Landscape layout: camera feed (flexible) + panel (320pt collapsible trailing)
-- BLEReconnectOverlay.swift (from Phase 1.4)
+- `RunnerHUDView.swift`: score with `.contentTransition(.numericText)`, progress ring, timer, BLE `StatusDot`
+- `TrainerControlsPanel.swift`: `DisclosureGroup` sections (Run Controls / Trainer Actions / Debug / HandX Live / Video)
+- Landscape layout: camera feed (flexible) + panel (320pt collapsible, trailing)
+- Skills: `ios-ai-ml-skills:swiftui-animation`, `ios-ai-ml-skills:swiftui-layout-components`
 
 **Phase 4 — Results/Analysis/Leaderboards/Reports/UserManagement**
-Phase 5 — Task Engines (TipPositioning, RubberBand, SpringsSuturing, Manual)
-Phase 6+7+8 — Audio expansion, EnrichedRunPayload, AsyncStream inference workers
+**Phase 5 — Task Engines (TipPositioning, RubberBand, SpringsSuturing, Manual)**
+**Phase 6+7+8 — Audio expansion, EnrichedRunPayload, AsyncStream inference workers**
 
 ### Xcode Build Command
 
