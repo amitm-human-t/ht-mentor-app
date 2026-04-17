@@ -396,3 +396,61 @@ Font.hxMonoBody    // 14pt mono (telemetry)
 .hudGlass()                          // capsule HUD strip
 StatusDot(color:, isActive:)         // animated BLE/camera dot
 ```
+
+---
+
+## ⚡ NEXT AGENT PROMPT — copy-paste to start the next session
+
+```
+You are continuing work on the HandX Training Hub — a production iPad surgical 
+instrument training app (SwiftUI, iOS 26, CoreML YOLO, BLE).
+
+Working directory:  /Users/amitm/tk_models/ipad app/p2 app/p2 app/p2 app/
+Git repo:           /Users/amitm/tk_models/ipad app/p2 app/p2 app/
+Branch:             claude-branch  (4 commits ahead of main, build clean 0 errors)
+Master context:     /Users/amitm/tk_models/ipad app/p2 app/p2 app/CLAUDE.md  ← READ THIS FIRST
+Full plan:          /Users/amitm/.claude/plans/staged-inventing-kite.md
+Memory files:       /Users/amitm/.claude/projects/-Users-amitm-tk-models-ipad-app-p2-app-p2-app-p2-app/memory/
+
+COMPLETED SO FAR (do not redo):
+  Phase 0    — CLAUDE.md / .clinerules / AGENTS.md created and synced
+  Phase 1.1  — Full @Observable migration (AppModel, RunnerCoordinator, 
+               HandXBLEManager, CameraService, DebugVideoFrameSource, 
+               PermissionCenter, AudioService + all views)
+  Phase 1.2  — YOLO→screen coord fix: PreviewCoordinate + layerRectConverted 
+               (pattern from mentor-tests reference app)
+  Phase 1.5  — DesignTokens.swift + GlassCard.swift (full design system)
+  Phase 1.6  — OverlayColor enum in TaskContracts, boxes carry color
+
+START HERE — Phase 1.3+1.4 (BLE Mock + Disconnect Policy):
+  1. Create Core/BLE/HandXBLEProvider.swift
+     — protocol that mirrors HandXBLEManager's public interface
+     — properties: connectionState, discoveredDevices, latestSample, statusText
+     — methods: startScan(), stopScan(), connect(to:), disconnect()
+  2. Create Core/BLE/MockHandXBLEManager.swift
+     — conforms to HandXBLEProvider
+     — @Observable, @MainActor, simulates .connected state
+     — animates latestSample values (joystick, orientation changing slowly)
+  3. AppModel.swift: #if targetEnvironment(simulator) inject MockHandXBLEManager
+  4. RunnerCoordinator.swift: accept any HandXBLEProvider, add disconnectCountdown: Int?
+  5. Disconnect during .lockedSprint + .running → pause + 10s countdown Task
+     Reconnect within window → resume; timeout → finish() with reason string
+  6. Create Features/TaskRunner/BLEReconnectOverlay.swift
+     — full-screen modal: countdown ring (Circle().trim), "HandX Disconnected",
+       activity indicator, "End Run" escape button
+     — triggered when runnerCoordinator.disconnectCountdown != nil
+
+THEN continue Phase 2.1 (UserChooserView), 2.2+2.3 (Hub + TaskPicker redesign),
+then Phase 3 (TaskRunner overhaul with RunnerHUDView + TrainerControlsPanel).
+
+RULES:
+  - After each phase: build with xcodebuild (command in CLAUDE.md Session Audit)
+  - Commit each phase separately with descriptive message + Co-Authored-By line
+  - Update Session Audit section in CLAUDE.md after every commit
+  - Sync CLAUDE.md → .clinerules and AGENTS.md after every CLAUDE.md edit
+  - Always add a fresh NEXT AGENT PROMPT block at the end of CLAUDE.md
+  - Use ios-ai-ml-skills:core-bluetooth skill for BLE work
+  - Use ios-ai-ml-skills:swiftui-liquid-glass for Hub/TaskPicker glass UI
+  - Design system is live: use Color.hxCyan, Font.hxHeadline, .glassCard() etc.
+  - North star: NOT an engineer's app — every screen must look premium/clinical
+```
