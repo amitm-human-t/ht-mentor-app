@@ -187,17 +187,17 @@ PhaseAnimator([false, true], trigger: targetID) { pulsed in
 
 | Screen | Route | Status |
 |--------|-------|--------|
-| UserChooser | `.userChooser` | needs build |
-| Hub | root | needs redesign |
-| TaskPicker | `.taskPicker` | needs redesign |
-| TaskRunner | `.taskRunner(task)` | needs overhaul |
-| Results | `.results(summary)` | needs build |
-| Analysis | `.analysis(id)` | needs build |
-| Leaderboards | `.leaderboards` | needs build |
-| Reports | `.reports` | needs build |
-| Curriculum + Run | `.curriculum` / `.curriculumRun` | needs build |
-| UserManagement | `.userManagement` | needs build |
-| CustomTaskConfig | `.customTaskConfig` | needs build |
+| UserChooser | `.userChooser` | ✅ done |
+| Hub | root | ✅ done (redesigned) |
+| TaskPicker | `.taskPicker` | ✅ done (card grid) |
+| TaskRunner | `.taskRunner(task)` | ✅ done (landscape + HUD + panel) |
+| Results | `.results(summary)` | ❌ Phase 4 |
+| Analysis | `.analysis(id)` | ❌ Phase 4 |
+| Leaderboards | `.leaderboards` | ❌ Phase 4 |
+| Reports | `.reports` | ❌ Phase 4 |
+| Curriculum + Run | `.curriculum` / `.curriculumRun` | ❌ Phase 9 |
+| UserManagement | `.userManagement` | ❌ Phase 4 |
+| CustomTaskConfig | `.customTaskConfig` | ❌ Phase 9 |
 
 **Flow:** App launch → UserChooser (select/create trainee) → Hub → TaskPicker → TaskRunner → Results → [Analysis / Leaderboards]
 
@@ -234,6 +234,15 @@ CoreML models bundled: `keylock`, `tippos`, `rubberband`, `springs`, `instrument
 - **Run loop reads, doesn't await.** `RunnerCoordinator.tick()` reads `worker.latestSnapshot` synchronously.
 - **Isolated subtrees.** `RunnerHUDView` reads only score/progress. `PreviewOverlayView` reads only overlayPayload. Separate re-render budgets.
 - **Thermal monitor.** Reduce inference rate on `.critical` thermal state.
+
+---
+
+## Skills Reference
+
+All skill reference sheets (project-specific cheat sheets) live in:
+**`.cline/skills/`** — one file per domain, with project-specific APIs and patterns.
+
+See `.cline/skills/README.md` for the dispatch table.
 
 ---
 
@@ -394,100 +403,45 @@ This is required for any machine/agent that clones the repo fresh.
 
 ---
 
-## Session Audit — Last Updated 2026-04-17
+## Session State
 
-### Git State
+> Session state, completed phases, build history, and what to do next lives in a separate file:
+>
+> **`SESSION_AUDIT.md`** (project root) — updated after every commit.
 
-Branch: `claude-branch` (off `main`)
-Commits so far:
-- `8b429a1` — Initial commit (project skeleton)
-- `ac181e8` — Phase 0+1.1: CLAUDE.md/AGENTS.md/.clinerules + full @Observable migration
-- `302d582` — Phase 1.2+1.5+1.6: Design system, coordinate fix, overlay colors
-- `c29a7db` — CLAUDE.md session audit + handoff instructions
-- `7d19e96` — Next-agent prompt block added
-- `1bcf070` — Human Instructions + pre-commit hook (first version)
-- `6d64e6b` — Bidirectional hook + .githooks/ tracked directory
-- `7e37235` — Phase 1.3+1.4: BLE mock + disconnect policy
-
-Current build: **0 errors** (generic/platform=iOS Simulator)
-
-### Completed Phases
-
-| Phase | What was done |
-|-------|--------------|
-| 0 | Created CLAUDE.md, .clinerules, AGENTS.md at project root |
-| 1.1 | Full @Observable migration (7 classes, all view files) |
-| 1.2 | PreviewCoordinate + layerRectConverted coord fix (mentor-tests validated) |
-| 1.3 | HandXBLEProvider protocol + MockHandXBLEManager (animated, simulator-injected) |
-| 1.4 | BLE disconnect policy: disconnectCountdown + 10s Task + BLEReconnectOverlay |
-| 1.5 | DesignTokens.swift + GlassCard.swift (full design system) |
-| 1.6 | OverlayColor enum + OverlayElement.box carries color |
-
-### NOT YET DONE — Pick up here in next session
-
-**Phase 2.1 — UserChooserView** ← START HERE
-- Route: add `.userChooser` to `AppRoute` in `AppModel.swift`
-- New file: `Features/UserChooser/UserChooserView.swift`
-- Landscape split: left panel (280pt, scrollable) = user list with search
-- Right panel: create/edit form — displayName TextField, DominantHand picker, avatar grid (SF Symbol initials avatar), Save button
-- `UserDefaults.lastActiveUserID` auto-selects last trainee on launch
-- Add `dominantHand: DominantHand` to `TaskConfig` in `TaskContracts.swift`
-- Skills: `ios-ai-ml-skills:swiftui-layout-components`, `ios-ai-ml-skills:swiftdata`
-
-**Phase 2.2+2.3 — Hub Redesign + TaskPicker card grid**
-- Hub: `GlassEffectContainer`, left-panel (user chip + HandX dot + mini camera preview) + 2×3 action card grid
-- TaskPicker: `LazyVGrid` card layout, `.interactiveGlassCard()`, zoom transitions via `@Namespace`
-- Skills: `ios-ai-ml-skills:swiftui-liquid-glass`, `ios-ai-ml-skills:swiftui-layout-components`
-
-**Phase 3 — TaskRunner Full Overhaul**
-- `RunnerHUDView.swift`: score with `.contentTransition(.numericText)`, progress ring, timer, BLE `StatusDot`
-- `TrainerControlsPanel.swift`: `DisclosureGroup` sections (Run Controls / Trainer Actions / Debug / HandX Live / Video)
-- Landscape layout: camera feed (flexible) + panel (320pt collapsible, trailing)
-- Skills: `ios-ai-ml-skills:swiftui-animation`, `ios-ai-ml-skills:swiftui-layout-components`
-
-**Phase 4 — Results/Analysis/Leaderboards/Reports/UserManagement**
-**Phase 5 — Task Engines (TipPositioning, RubberBand, SpringsSuturing, Manual)**
-**Phase 6+7+8 — Audio expansion, EnrichedRunPayload, AsyncStream inference workers**
-
-### Xcode Build Command
-
-```bash
-/Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild build \
-  -project "/Users/amitm/tk_models/ipad app/p2 app/p2 app/p2 app.xcodeproj" \
-  -scheme "p2 app" \
-  -destination "platform=iOS Simulator,name=iPad Pro 13-inch (M5),OS=26.4" \
-  -configuration Debug
-```
-
-### Key References
-
-- Coordinate fix pattern: `/Users/amitm/tk_models/ipad app/mentor tests/mentor model tests/mentor model tests/CameraViewController.swift` line 726–733
-- Plan file: `/Users/amitm/.claude/plans/staged-inventing-kite.md` (full 10-phase plan)
-- Memory files: `/Users/amitm/.claude/projects/-Users-amitm-tk-models-ipad-app-p2-app-p2-app-p2-app/memory/`
+**Quick status:** Phases 0–3 complete. Phase 4 (Results/Analysis/Leaderboards/Reports) is next.
 
 ### Design Token Quick Reference
 
 ```swift
 // Colors
-Color.hxCyan       // primary accent (electric cyan)
-Color.hxAmber      // HandX device status
-Color.hxSuccess    // target reached
-Color.hxDanger     // failure/drop
-Color.hxWarning    // caution
+Color.hxCyan        // primary accent (electric cyan)
+Color.hxAmber       // HandX device status
+Color.hxSuccess     // target reached
+Color.hxDanger      // failure/drop
+Color.hxWarning     // caution
+Color.hxBackground  // OLED black
+Color.hxSurface     // card surface
+Color.hxSurfaceRaised // elevated surface
 
 // Fonts
-Font.hxDisplay     // 52pt bold rounded
-Font.hxTitle1      // 32pt bold rounded
-Font.hxHeadline    // 17pt semibold rounded
-Font.hxBody        // 15pt regular rounded
-Font.hxMonoDisplay // 48pt bold mono (scores)
-Font.hxMonoBody    // 14pt mono (telemetry)
+Font.hxDisplay      // 52pt bold rounded (hero scores)
+Font.hxTitle1       // 32pt bold rounded
+Font.hxHeadline     // 17pt semibold rounded
+Font.hxBody         // 15pt regular rounded
+Font.hxMonoDisplay  // 48pt bold mono (score counter)
+Font.hxMonoBody     // 14pt mono (telemetry values)
+Font.hxCaption      // 11pt medium (labels)
+
+// Spacing + Radius
+HXSpacing.sm/md/lg/xl   // 8/12/16/24
+HXRadius.sm/md/lg/xl    // 8/12/16/24
 
 // Modifiers
-.glassCard()                         // standard glass card
-.interactiveGlassCard()              // tappable card with press state
-.hudGlass()                          // capsule HUD strip
-StatusDot(color:, isActive:)         // animated BLE/camera dot
+.glassCard()             // standard glass card
+.interactiveGlassCard()  // tappable card with press state
+.hudGlass()              // capsule HUD strip
+StatusDot(color:, isActive:)  // animated BLE/camera dot
 ```
 
 ---
@@ -500,50 +454,53 @@ instrument training app (SwiftUI, iOS 26, CoreML YOLO, BLE).
 
 Working directory:  /Users/amitm/tk_models/ipad app/p2 app/p2 app/p2 app/
 Git repo:           /Users/amitm/tk_models/ipad app/p2 app/p2 app/
-Branch:             claude-branch  (4 commits ahead of main, build clean 0 errors)
+Branch:             claude-branch  (build clean 0 errors)
 Master context:     /Users/amitm/tk_models/ipad app/p2 app/p2 app/CLAUDE.md  ← READ THIS FIRST
+Session state:      /Users/amitm/tk_models/ipad app/p2 app/p2 app/SESSION_AUDIT.md  ← what's done/pending
+Skills reference:   /Users/amitm/tk_models/ipad app/p2 app/p2 app/.cline/skills/  ← per-domain cheat sheets
 Full plan:          /Users/amitm/.claude/plans/staged-inventing-kite.md
 Memory files:       /Users/amitm/.claude/projects/-Users-amitm-tk-models-ipad-app-p2-app-p2-app-p2-app/memory/
 
-COMPLETED SO FAR (do not redo):
-  Phase 0    — CLAUDE.md / .clinerules / AGENTS.md created and synced
-  Phase 1.1  — Full @Observable migration (AppModel, RunnerCoordinator, 
-               HandXBLEManager, CameraService, DebugVideoFrameSource, 
-               PermissionCenter, AudioService + all views)
-  Phase 1.2  — YOLO→screen coord fix: PreviewCoordinate + layerRectConverted 
-               (pattern from mentor-tests reference app)
-  Phase 1.5  — DesignTokens.swift + GlassCard.swift (full design system)
-  Phase 1.6  — OverlayColor enum in TaskContracts, boxes carry color
+COMPLETED (do not redo): Phases 0, 1.1–1.6, 2.1, 2.2, 2.3, 3
+  See SESSION_AUDIT.md for full commit log and file list.
 
-START HERE — Phase 1.3+1.4 (BLE Mock + Disconnect Policy):
-  1. Create Core/BLE/HandXBLEProvider.swift
-     — protocol that mirrors HandXBLEManager's public interface
-     — properties: connectionState, discoveredDevices, latestSample, statusText
-     — methods: startScan(), stopScan(), connect(to:), disconnect()
-  2. Create Core/BLE/MockHandXBLEManager.swift
-     — conforms to HandXBLEProvider
-     — @Observable, @MainActor, simulates .connected state
-     — animates latestSample values (joystick, orientation changing slowly)
-  3. AppModel.swift: #if targetEnvironment(simulator) inject MockHandXBLEManager
-  4. RunnerCoordinator.swift: accept any HandXBLEProvider, add disconnectCountdown: Int?
-  5. Disconnect during .lockedSprint + .running → pause + 10s countdown Task
-     Reconnect within window → resume; timeout → finish() with reason string
-  6. Create Features/TaskRunner/BLEReconnectOverlay.swift
-     — full-screen modal: countdown ring (Circle().trim), "HandX Disconnected",
-       activity indicator, "End Run" escape button
-     — triggered when runnerCoordinator.disconnectCountdown != nil
+START HERE — Phase 4 (Results, Analysis, Leaderboards, Reports, UserManagement):
+  Skills: ios-ai-ml-skills:swiftui-animation, ios-ai-ml-skills:swift-charts,
+          ios-ai-ml-skills:swiftdata, ios-ai-ml-skills:swiftui-liquid-glass
 
-THEN continue Phase 2.1 (UserChooserView), 2.2+2.3 (Hub + TaskPicker redesign),
-then Phase 3 (TaskRunner overhaul with RunnerHUDView + TrainerControlsPanel).
+  4.1 Features/Results/ResultsView.swift
+      — Score hero counting from 0 (.contentTransition .numericText)
+      — Duration / accuracy / targets in glass cards
+      — Three CTAs: Retry | Analyze | Back to Hub
+      — .navigationTransition(.zoom) entry
+
+  4.2 Features/Analysis/AnalysisView.swift
+      — 4 tabs: Overview (sparkline chart), Task-specific, HandX, Notes (TextEditor)
+      — @Query on RunSummaryRecord filtered by user + task
+
+  4.3 Features/Leaderboards/LeaderboardsView.swift
+      — @Query with task+mode filter pills
+      — Podium top-3, LazyVStack rows below
+      — ContentUnavailableView for empty state
+
+  4.4 Features/Reports/ReportsView.swift
+      — Date range + task + user filters
+      — Summary cards + bar chart (per-task session counts)
+
+  4.5 Features/UserManagement/UserManagementView.swift
+      — Landscape split (same pattern as UserChooserView)
+      — Swipe-to-delete + inline edit
+
+  Wire all new routes in ContentView.swift after building each view.
+
+THEN Phase 5 (task engines), Phase 6+7+8 (audio, enriched payload, perf).
 
 RULES:
-  - After each phase: build with xcodebuild (command in CLAUDE.md Session Audit)
-  - Commit each phase separately with descriptive message + Co-Authored-By line
-  - Update Session Audit section in CLAUDE.md after every commit
-  - Sync CLAUDE.md → .clinerules and AGENTS.md after every CLAUDE.md edit
-  - Always add a fresh NEXT AGENT PROMPT block at the end of CLAUDE.md
-  - Use ios-ai-ml-skills:core-bluetooth skill for BLE work
-  - Use ios-ai-ml-skills:swiftui-liquid-glass for Hub/TaskPicker glass UI
-  - Design system is live: use Color.hxCyan, Font.hxHeadline, .glassCard() etc.
-  - North star: NOT an engineer's app — every screen must look premium/clinical
+  - After each phase: xcodebuild (command in SESSION_AUDIT.md)
+  - Commit each phase separately with Co-Authored-By line
+  - Update SESSION_AUDIT.md after each commit (not CLAUDE.md — that stays stable)
+  - Sync CLAUDE.md → .clinerules + AGENTS.md only when CLAUDE.md changes
+  - Always refresh NEXT AGENT PROMPT at end of CLAUDE.md
+  - Design system is live: Color.hxCyan, Font.hxHeadline, .glassCard(), etc.
+  - North star: NOT an engineer's app — every screen must be premium/clinical
 ```
