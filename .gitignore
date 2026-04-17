@@ -28,3 +28,25 @@ DerivedData/
 ._*
 .Spotlight-V100
 .Trashes
+
+# Large binary assets — keep out of git (use Git LFS or out-of-band storage)
+# CoreML model packages
+*.mlpackage/
+*.mlpackage
+
+# Compiled/generated CoreML artifacts
+*.mlmodelc/
+
+# Sound assets
+p2\ app/sounds/
+sounds/
+
+# Debug / training videos
+p2\ app/DebugVideos/
+DebugVideos/
+*.mp4
+*.mov
+*.m4v
+
+# Git hooks (tracked separately under .githooks/)
+# .githooks/ is intentionally committed
