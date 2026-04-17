@@ -1,5 +1,6 @@
 import Foundation
 import CoreGraphics
+import SwiftUI
 import simd
 
 enum TaskIdentifier: String, Codable, Hashable, CaseIterable {
@@ -100,8 +101,26 @@ struct OverlayPayload: Sendable {
     static let empty = OverlayPayload(elements: [])
 }
 
+enum OverlayColor: String, Sendable, Hashable, CaseIterable {
+    case green, cyan, orange, yellow, red, teal, white, pink, amber
+
+    var swiftUIColor: Color {
+        switch self {
+        case .green:  return .hxSuccess
+        case .cyan:   return .hxCyan
+        case .orange: return Color(red: 1.0, green: 0.55, blue: 0.0)
+        case .yellow: return .hxAmber
+        case .red:    return .hxDanger
+        case .teal:   return Color(red: 0.2, green: 0.85, blue: 0.75)
+        case .white:  return .white
+        case .pink:   return Color(red: 1.0, green: 0.30, blue: 0.65)
+        case .amber:  return .hxWarning
+        }
+    }
+}
+
 enum OverlayElement: Sendable, Hashable {
-    case box(CGRect, label: String)
+    case box(CGRect, label: String, color: OverlayColor = .cyan)
     case line(CGPoint, CGPoint, label: String?)
     case target(CGPoint, radius: CGFloat, label: String)
 }

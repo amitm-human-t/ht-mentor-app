@@ -1,0 +1,9 @@
+{
+  "enabledPlugins": {
+    "ui-ux-pro-max@ui-ux-pro-max-skill": true,
+    "ios-ai-ml-skills@swift-ios-skills": true,
+    "ios-gaming-skills@swift-ios-skills": true,
+    "swiftui-skills@swift-ios-skills": true,
+    "all-ios-skills@swift-ios-skills": true
+  }
+}

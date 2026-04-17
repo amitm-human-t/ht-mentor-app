@@ -9,6 +9,9 @@ struct AppPreviewStageView: View {
     private let debugVideoFrameSource: DebugVideoFrameSource
     private let cameraService: CameraService
 
+    /// Shared coordinate converter — populated when the camera preview UIView is ready.
+    @State private var previewCoordinate = PreviewCoordinate()
+
     init(appModel: AppModel, showsControls: Bool = true, compact: Bool = false) {
         self.appModel = appModel
         self.showsControls = showsControls
@@ -23,7 +26,10 @@ struct AppPreviewStageView: View {
             previewSurface
                 .background(Color.black)
                 .overlay {
-                    PreviewOverlayView(payload: runnerCoordinator.latestOutput.overlayPayload)
+                    PreviewOverlayView(
+                        payload: runnerCoordinator.latestOutput.overlayPayload,
+                        coordinateConverter: previewCoordinate.convert
+                    )
                 }
                 .clipShape(RoundedRectangle(cornerRadius: compact ? 20 : 28, style: .continuous))
 
@@ -61,7 +67,7 @@ struct AppPreviewStageView: View {
                     Color.black
                 }
             } else {
-                CameraPreviewView(session: cameraService.session)
+                CameraPreviewView(session: cameraService.session, coordinate: previewCoordinate)
                     .overlay {
                         if cameraService.authorizationStatus != .authorized {
                             Color.black.opacity(0.65)
@@ -125,14 +131,17 @@ struct AppPreviewStageView: View {
 
 private struct PreviewOverlayView: View {
     let payload: OverlayPayload
+    /// Converts normalised YOLO rects to view coordinates via AVCaptureVideoPreviewLayer.
+    /// Falls back to flip-based approximation when the live camera is not active.
+    let coordinateConverter: (CGRect) -> CGRect
 
     var body: some View {
         GeometryReader { proxy in
             ZStack {
                 ForEach(Array(payload.elements.enumerated()), id: \.offset) { _, element in
                     switch element {
-                    case .box(let rect, let label):
-                        boxOverlay(rect: rect, label: label, in: proxy.size)
+                    case .box(let rect, let label, let color):
+                        boxOverlay(rect: rect, label: label, color: color, in: proxy.size)
                     case .line(let start, let end, let label):
                         lineOverlay(start: start, end: end, label: label, in: proxy.size)
                     case .target(let center, let radius, let label):
@@ -144,75 +153,82 @@ private struct PreviewOverlayView: View {
         .allowsHitTesting(false)
     }
 
-    private func boxOverlay(rect: CGRect, label: String, in size: CGSize) -> some View {
-        let mapped = map(rect: rect, into: size)
+    private func boxOverlay(rect: CGRect, label: String, color: OverlayColor, in size: CGSize) -> some View {
+        let mapped = mapYOLO(rect: rect, into: size)
         return ZStack(alignment: .topLeading) {
             Rectangle()
-                .stroke(Color.green, lineWidth: 3)
+                .stroke(color.swiftUIColor, lineWidth: 2.5)
                 .frame(width: mapped.width, height: mapped.height)
                 .position(x: mapped.midX, y: mapped.midY)
 
             Text(label)
-                .font(.caption.bold())
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.black.opacity(0.72), in: Capsule())
-                .foregroundStyle(.white)
-                .position(x: mapped.minX + 72, y: max(14, mapped.minY - 12))
+                .font(.hxCaption)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(Color.black.opacity(0.78), in: Capsule())
+                .foregroundStyle(color.swiftUIColor)
+                .position(x: mapped.minX + max(36, mapped.width / 2), y: max(12, mapped.minY - 13))
         }
     }
 
     private func lineOverlay(start: CGPoint, end: CGPoint, label: String?, in size: CGSize) -> some View {
-        let mappedStart = map(point: start, into: size)
-        let mappedEnd = map(point: end, into: size)
+        let mappedStart = mapPoint(start, into: size)
+        let mappedEnd = mapPoint(end, into: size)
         return ZStack {
             Path { path in
                 path.move(to: mappedStart)
                 path.addLine(to: mappedEnd)
             }
-            .stroke(Color.orange, style: StrokeStyle(lineWidth: 4, lineCap: .round, dash: [8, 8]))
+            .stroke(Color.hxAmber, style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [6, 6]))
 
             if let label {
                 Text(label)
-                    .font(.caption.bold())
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.black.opacity(0.72), in: Capsule())
-                    .foregroundStyle(.white)
-                    .position(x: (mappedStart.x + mappedEnd.x) / 2, y: (mappedStart.y + mappedEnd.y) / 2 - 16)
+                    .font(.hxCaption)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(Color.black.opacity(0.78), in: Capsule())
+                    .foregroundStyle(Color.hxAmber)
+                    .position(x: (mappedStart.x + mappedEnd.x) / 2, y: (mappedStart.y + mappedEnd.y) / 2 - 14)
             }
         }
     }
 
     private func targetOverlay(center: CGPoint, radius: CGFloat, label: String, in size: CGSize) -> some View {
-        let mappedCenter = map(point: center, into: size)
+        let mappedCenter = mapPoint(center, into: size)
         let scaledRadius = max(10, radius * min(size.width, size.height))
         return ZStack {
             Circle()
-                .stroke(Color.cyan, lineWidth: 3)
+                .stroke(Color.hxCyan, lineWidth: 2.5)
                 .frame(width: scaledRadius * 2, height: scaledRadius * 2)
                 .position(mappedCenter)
 
             Text(label)
-                .font(.caption.bold())
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.black.opacity(0.72), in: Capsule())
-                .foregroundStyle(.white)
-                .position(x: mappedCenter.x, y: mappedCenter.y - scaledRadius - 16)
+                .font(.hxCaption)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(Color.black.opacity(0.78), in: Capsule())
+                .foregroundStyle(Color.hxCyan)
+                .position(x: mappedCenter.x, y: mappedCenter.y - scaledRadius - 14)
         }
     }
 
-    private func map(rect: CGRect, into size: CGSize) -> CGRect {
-        CGRect(
-            x: rect.minX * size.width,
-            y: rect.minY * size.height,
-            width: rect.width * size.width,
-            height: rect.height * size.height
-        )
+    // MARK: - Coordinate Mapping
+
+    /// Map a normalised YOLO rect through the preview layer coordinate converter,
+    /// then scale to the SwiftUI view size.
+    private func mapYOLO(rect: CGRect, into size: CGSize) -> CGRect {
+        // coordinateConverter returns a rect in the [0,1] normalised layer space
+        // (i.e., it still needs to be scaled to the actual pixel size).
+        // PreviewCoordinate.convert handles the metadata flip then calls layerRectConverted,
+        // which returns a rect in *layer* pixel coordinates — NOT 0..1.
+        // So we must NOT multiply by size here; instead we return the rect directly.
+        coordinateConverter(rect)
     }
 
-    private func map(point: CGPoint, into size: CGSize) -> CGPoint {
-        CGPoint(x: point.x * size.width, y: point.y * size.height)
+    private func mapPoint(_ point: CGPoint, into size: CGSize) -> CGPoint {
+        // Points for lines/targets are still in normalised 0..1 space — scale to view.
+        // Apply same flip as YOLO rects for consistency.
+        let flipped = CGPoint(x: 1.0 - point.x, y: 1.0 - point.y)
+        return CGPoint(x: flipped.x * size.width, y: flipped.y * size.height)
     }
 }

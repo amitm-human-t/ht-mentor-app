@@ -24,8 +24,8 @@ final class CameraService: NSObject {
     private let outputQueue = DispatchQueue(label: "p2.camera.output", qos: .userInitiated)
     private let videoOutput = AVCaptureVideoDataOutput()
     private let sampleBufferDelegate = SampleBufferDelegate()
-    nonisolated private var configured = false
-    nonisolated private var frameBus: CameraFrameBus?
+    @ObservationIgnored private var configured = false
+    @ObservationIgnored private var frameBus: CameraFrameBus?
     private var configurationTask: Task<Void, Error>?
 
     func refreshAuthorizationStatus() async {
