@@ -15,7 +15,11 @@ final class AppModel {
     let permissionCenter = PermissionCenter()
     let cameraService = CameraService()
     let debugVideoFrameSource = DebugVideoFrameSource()
+    #if targetEnvironment(simulator)
+    let bleManager = MockHandXBLEManager()
+    #else
     let bleManager = HandXBLEManager()
+    #endif
     let audioService = AudioService()
     let modelRegistry = CoreMLModelRegistry()
     let frameBus = CameraFrameBus()

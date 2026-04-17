@@ -60,6 +60,14 @@ struct TaskRunnerView: View {
             }
         }
         .animation(.easeInOut(duration: 0.22), value: isControlPanelVisible)
+        .overlay {
+            if let countdown = runnerCoordinator.disconnectCountdown {
+                BLEReconnectOverlay(countdown: countdown) {
+                    runnerCoordinator.finish()
+                }
+                .animation(.hxModal, value: countdown)
+            }
+        }
     }
 
     private var runnerOverlay: some View {

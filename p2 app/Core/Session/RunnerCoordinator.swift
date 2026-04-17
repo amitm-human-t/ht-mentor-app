@@ -41,9 +41,13 @@ final class RunnerCoordinator {
         instrumentTipDetected: false
     )
 
+    /// Non-nil during a BLE reconnect window in `.lockedSprint` mode.
+    /// Counts down from 10 to 0; reaching 0 auto-finishes the run.
+    private(set) var disconnectCountdown: Int? = nil
+
     private let cameraService: CameraService
     private let debugVideoFrameSource: DebugVideoFrameSource
-    private let bleManager: HandXBLEManager
+    private let bleManager: any HandXBLEProvider
     private let modelRegistry: CoreMLModelRegistry
     private let permissionCenter: PermissionCenter
     private let frameBus: CameraFrameBus
@@ -51,13 +55,14 @@ final class RunnerCoordinator {
     private var taskStartDate: Date?
     private var trainerActions: [TrainerAction] = []
     private var runLoopTask: Task<Void, Never>?
+    private var reconnectCountdownTask: Task<Void, Never>?
     private var taskInferenceWorker: TaskInferenceWorker?
     private var instrumentInferenceWorker: InstrumentInferenceWorker?
 
     init(
         cameraService: CameraService,
         debugVideoFrameSource: DebugVideoFrameSource,
-        bleManager: HandXBLEManager,
+        bleManager: any HandXBLEProvider,
         modelRegistry: CoreMLModelRegistry,
         permissionCenter: PermissionCenter,
         frameBus: CameraFrameBus
@@ -169,10 +174,61 @@ final class RunnerCoordinator {
     }
 
     func finish() {
+        reconnectCountdownTask?.cancel()
+        reconnectCountdownTask = nil
+        disconnectCountdown = nil
         runLoopTask?.cancel()
         stopFrameSources()
         stateMachine.finish()
         AppLogger.runtime.info("Runner finished")
+    }
+
+    // MARK: - BLE Disconnect Policy
+
+    /// Called from tick() when a BLE drop is detected during a locked-sprint run.
+    /// Pauses immediately and starts a 10-second reconnect window.
+    private func handleBLEDisconnect() {
+        guard stateMachine.phase == .running, selectedMode == .lockedSprint else { return }
+        guard reconnectCountdownTask == nil else { return }  // already counting down
+
+        AppLogger.runtime.warning("HandX disconnected during locked sprint — starting 10s reconnect window")
+        pause()
+
+        disconnectCountdown = 10
+        reconnectCountdownTask = Task { [weak self] in
+            guard let self else { return }
+            for remaining in stride(from: 9, through: 0, by: -1) {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled else { return }
+                self.disconnectCountdown = remaining
+            }
+            // Countdown expired — check one last time whether BLE reconnected
+            guard !Task.isCancelled else { return }
+            if self.bleManager.connectionState == .connected {
+                self.clearReconnectState()
+                self.resume()
+                AppLogger.runtime.info("HandX reconnected — resuming run")
+            } else {
+                self.clearReconnectState()
+                self.currentFailure = .bleDisconnectTimeout
+                self.finish()
+                AppLogger.runtime.error("HandX reconnect timed out — run ended")
+            }
+        }
+    }
+
+    /// Called when BLE reconnects during the countdown window.
+    private func handleBLEReconnect() {
+        guard reconnectCountdownTask != nil else { return }
+        AppLogger.runtime.info("HandX reconnected within window — cancelling countdown")
+        clearReconnectState()
+        resume()
+    }
+
+    private func clearReconnectState() {
+        reconnectCountdownTask?.cancel()
+        reconnectCountdownTask = nil
+        disconnectCountdown = nil
     }
 
     func registerTrainerAction(_ kind: TrainerAction.Kind) {
@@ -204,6 +260,17 @@ final class RunnerCoordinator {
 
     private func tick() async {
         guard stateMachine.phase == .running else { return }
+
+        // BLE disconnect detection for locked-sprint mode
+        if selectedMode == .lockedSprint {
+            if bleManager.connectionState != .connected && reconnectCountdownTask == nil {
+                handleBLEDisconnect()
+                return
+            } else if bleManager.connectionState == .connected && reconnectCountdownTask != nil {
+                handleBLEReconnect()
+            }
+        }
+
         let elapsed = Date().timeIntervalSince(taskStartDate ?? Date())
         let taskInference = await taskInferenceWorker?.evaluateLatestFrame() ?? TaskInferenceSnapshot(modelLoaded: false, outputNames: [], detections: [])
         let instrumentInference = await instrumentInferenceWorker?.evaluateLatestFrame() ?? InstrumentInferenceSnapshot(modelLoaded: false, outputNames: [], tip: nil)
@@ -257,6 +324,7 @@ final class RunnerCoordinator {
 enum RunnerFailure: LocalizedError, Equatable {
     case cameraPermissionDenied
     case bleRequired
+    case bleDisconnectTimeout
     case startup(String)
 
     var errorDescription: String? {
@@ -265,6 +333,8 @@ enum RunnerFailure: LocalizedError, Equatable {
             return "Camera permission is required before the Task Runner can start."
         case .bleRequired:
             return "Locked Sprint requires an active HandX connection."
+        case .bleDisconnectTimeout:
+            return "HandX disconnected and did not reconnect within 10 seconds."
         case .startup(let message):
             return "Runner startup failed: \(message)"
         }

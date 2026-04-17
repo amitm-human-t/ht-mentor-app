@@ -5,7 +5,7 @@ import simd
 
 @MainActor
 @Observable
-final class HandXBLEManager: NSObject {
+final class HandXBLEManager: NSObject, HandXBLEProvider {
     enum ConnectionState: String {
         case disconnected
         case scanning
