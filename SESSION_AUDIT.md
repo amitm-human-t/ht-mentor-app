@@ -5,14 +5,14 @@
 
 ---
 
-## Last Updated: 2026-04-17 (logging update)
+## Last Updated: 2026-04-18
 
 ---
 
 ## Git State
 
-**Active branch:** `phase-5` (off `phase-4`)  
-**Remote:** `https://github.com/amitm-human-t/ht-mentor-app` (empty — push pending, HTTP 500 from GitHub)
+**Active branch:** `main`  
+**Remote:** `https://github.com/amitm-human-t/ht-mentor-app`
 
 ### Commit Log
 
@@ -29,7 +29,7 @@ ac181e8  Phase 0+1.1: CLAUDE.md/AGENTS.md/.clinerules + full @Observable migrati
 8b429a1  Initial commit (project skeleton)
 ```
 
-**Current build:** ✅ 0 errors (iPad Pro 13-inch M5, iOS 26.4.1 simulator)
+**Current build:** ✅ 0 errors (iOS Simulator, 2026-04-18)
 
 ---
 
@@ -51,6 +51,8 @@ ac181e8  Phase 0+1.1: CLAUDE.md/AGENTS.md/.clinerules + full @Observable migrati
 | 4 | Results, Analysis, Leaderboards, Reports, UserManagement — all 5 Phase 4 screens | phase-4 head |
 | 5 | TipPositioning, RubberBand, SpringsSuturing, ManualScoring engines + AudioService callouts | phase-5 head |
 | 5.x | In-app log viewer + fileInfo wrapper for DEBUG file logging | phase-5 head |
+| fix | Camera orientation (dynamic landscapeLeft/Right rotation), bounding box coord fix for debug video, model prefetch on card appear, haptic feedback | 7ae15de |
+| 6+7+8 | AudioService 3-player (background music), EnrichedRunPayload (RunPayload Codable), ThermalMonitor (throttle/pause inference on thermal pressure) | 902be39 |
 
 ### Key Files Created/Modified in Phase 4
 
@@ -104,30 +106,22 @@ Modified files:
 
 All 4 task engines implemented + AudioService expanded + RunnerCoordinator wired.
 
-### Phase 6+7+8 — Polish ← START HERE
+### ✅ Phase 6+7+8 — COMPLETE
 
-### Phase 6+7+8 — Polish
+- **AudioService 3-player:** background looping music (startBackground/pause/resume/stop wired to RunnerCoordinator lifecycle)
+- **EnrichedRunPayload:** `RunPayload` Codable struct replaces `[String: String]`; events log, thermal state, accuracy all captured
+- **ThermalMonitor:** `@Observable @MainActor` class — `.serious` halves tick rate, `.critical` skips inference entirely; shown in debug panel
+- **Camera orientation:** `CameraService` observes `UIDevice.orientationDidChangeNotification`; dynamic rotation for both preview layer and output connection; inference EXIF orientation updated per-frame
+- **Bounding box fix:** `PreviewCoordinate.viewSize` fed via `onGeometryChange`; debug-video fallback now scales to view pixels
+- **Model prefetch:** `AppModel.prefetchModels()` called from `TaskCard.task` — models warm as cards appear
+- **Haptic feedback:** `UIImpactFeedbackGenerator` on mode-pill tap, Start, Pause, Resume, Results
 
-**New files added this session:**
-```
-Modified: p2 app/Core/Diagnostics/AppLogger.swift
-  — Added fileInfo() wrapper (writes to file in DEBUG builds)
-  — Exposed DebugLogFile.url, .contents, .clear() for viewer
+### Phase 9 — Curriculum + CustomTaskConfig ← NEXT
 
-New: p2 app/Features/Diagnostics/LogViewerView.swift
-  — Live log viewer (2s auto-refresh), color-coded by level
-  — Copy / Share / Clear toolbar actions
-
-Modified: p2 app/Features/Diagnostics/DiagnosticsView.swift
-  — Added "App Logs →" NavigationLink to LogViewerView
-```
-
-Usage: Hub → Diagnostics → App Logs. Or `./scripts/pull-logs.sh tail` for Claude to read.
-
-- **Audio:** 3-player `AudioService` (background + callout + effect)
-- **EnrichedRunPayload:** richer JSON in `RunSummaryRecord.summaryPayloadJSON`
-- **AsyncStream inference workers:** self-scheduling pattern (see `.cline/skills/swift-concurrency.md`)
-- **ThermalMonitor:** reduce inference on `.critical` (see `.cline/skills/swiftui-performance.md`)
+Per CLAUDE.md plan:
+- `Features/Curriculum/CurriculumView.swift` + `CurriculumRunView.swift`
+- `Features/CustomTaskConfig/CustomTaskConfigView.swift`
+- Wire `.curriculum`, `.curriculumRun`, `.customTaskConfig` routes
 
 ---
 
