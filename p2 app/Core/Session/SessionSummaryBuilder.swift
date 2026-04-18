@@ -7,9 +7,25 @@ enum SessionSummaryBuilder {
         startedAt: Date,
         endedAt: Date,
         output: TaskStepOutput,
-        handXConnected: Bool
+        handXConnected: Bool,
+        thermalStateName: String = "nominal"
     ) -> RunSummaryDraft {
-        RunSummaryDraft(
+        let accuracy: Double? = output.progress.total > 0
+            ? Double(output.progress.completed) / Double(output.progress.total) * 100
+            : nil
+
+        let eventRecords = output.events.map { event in
+            RunEventRecord(name: event.name, timestamp: event.timestamp, payload: event.payload)
+        }
+
+        let payload = RunPayload(
+            statusText: output.statusText,
+            targetInfo: output.targetInfo,
+            thermalState: thermalStateName,
+            events: eventRecords
+        )
+
+        return RunSummaryDraft(
             runID: UUID(),
             userID: nil,
             taskID: task.id.rawValue,
@@ -20,12 +36,9 @@ enum SessionSummaryBuilder {
             score: output.score,
             completedTargets: output.progress.completed,
             totalTargets: output.progress.total,
-            accuracyPercent: nil,
+            accuracyPercent: accuracy,
             handXUsed: handXConnected,
-            summaryPayload: [
-                "statusText": output.statusText,
-                "targetInfo": output.targetInfo
-            ]
+            summaryPayload: payload
         )
     }
 }

@@ -7,6 +7,47 @@ import OSLog
 final class AudioService {
     private var effectPlayer: AVAudioPlayer?
     private var calloutPlayer: AVAudioPlayer?
+    private var backgroundPlayer: AVAudioPlayer?
+
+    /// Background volume — can be adjusted by the user in settings.
+    var backgroundVolume: Float = 0.25 {
+        didSet { backgroundPlayer?.volume = backgroundVolume }
+    }
+
+    init() {
+        configureAudioSession()
+    }
+
+    // MARK: - Background music (looping, low volume)
+
+    func startBackground() {
+        let tracks: [BundledAsset] = [
+            BundledAsset(pathComponents: ["sounds", "backgrounds", "background1"], fileExtension: "mp3", kind: .sound),
+            BundledAsset(pathComponents: ["sounds", "backgrounds", "background2"], fileExtension: "mp3", kind: .sound)
+        ]
+        let asset = tracks.randomElement()!
+        guard let url = asset.locate(in: .main) else {
+            AppLogger.runtime.debug("AudioService: no background music found, skipping")
+            return
+        }
+        backgroundPlayer = try? AVAudioPlayer(contentsOf: url)
+        backgroundPlayer?.numberOfLoops = -1
+        backgroundPlayer?.volume = backgroundVolume
+        backgroundPlayer?.play()
+    }
+
+    func stopBackground() {
+        backgroundPlayer?.stop()
+        backgroundPlayer = nil
+    }
+
+    func pauseBackground() {
+        backgroundPlayer?.pause()
+    }
+
+    func resumeBackground() {
+        backgroundPlayer?.play()
+    }
 
     // MARK: - Effect sounds (success, fail, finished…)
 
@@ -33,6 +74,14 @@ final class AudioService {
         }
         calloutPlayer = try? AVAudioPlayer(contentsOf: url)
         calloutPlayer?.play()
+    }
+
+    // MARK: - Session setup
+
+    private func configureAudioSession() {
+        let session = AVAudioSession.sharedInstance()
+        try? session.setCategory(.ambient, mode: .default, options: [.mixWithOthers])
+        try? session.setActive(true)
     }
 }
 

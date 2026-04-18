@@ -410,7 +410,7 @@ private struct RoundedCorner: Shape {
             startedAt: Date(timeIntervalSinceNow: -Double.random(in: 3600...86400)),
             endedAt: .now, durationMS: 120_000, score: score,
             completedTargets: score / 10, totalTargets: 10,
-            accuracyPercent: Double(score), handXUsed: true, summaryPayload: [:]
+            accuracyPercent: Double(score), handXUsed: true, summaryPayload: RunPayload()
         )
         ctx.insert(RunSummaryRecord(draft: draft))
     }

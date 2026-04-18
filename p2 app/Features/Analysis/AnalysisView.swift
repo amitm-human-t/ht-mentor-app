@@ -607,7 +607,7 @@ private struct AnalysisStatTile: View {
         totalTargets: 10,
         accuracyPercent: 80.0,
         handXUsed: true,
-        summaryPayload: [:]
+        summaryPayload: RunPayload()
     )
     ctx.insert(RunSummaryRecord(draft: draft))
     return NavigationStack {

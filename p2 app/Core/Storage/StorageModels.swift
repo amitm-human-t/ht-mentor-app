@@ -69,8 +69,34 @@ struct RunSummaryDraft: Hashable {
     let totalTargets: Int
     let accuracyPercent: Double?
     let handXUsed: Bool
-    let summaryPayload: [String: String]
+    let summaryPayload: RunPayload
 
     var durationSeconds: Int { durationMS / 1000 }
     var taskTitle: String { TaskDefinition.all.first { $0.id.rawValue == taskID }?.title ?? taskID }
+}
+
+/// Richer run payload stored as JSON in RunSummaryRecord.summaryPayloadJSON.
+struct RunPayload: Hashable, Codable {
+    let statusText: String
+    let targetInfo: String
+    let thermalState: String
+    let events: [RunEventRecord]
+
+    init(
+        statusText: String = "",
+        targetInfo: String = "",
+        thermalState: String = "nominal",
+        events: [RunEventRecord] = []
+    ) {
+        self.statusText = statusText
+        self.targetInfo = targetInfo
+        self.thermalState = thermalState
+        self.events = events
+    }
+}
+
+struct RunEventRecord: Hashable, Codable {
+    let name: String
+    let timestamp: Double
+    let payload: [String: String]
 }

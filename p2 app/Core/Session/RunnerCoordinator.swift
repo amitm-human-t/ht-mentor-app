@@ -73,9 +73,12 @@ final class RunnerCoordinator {
     private let permissionCenter: PermissionCenter
     private let frameBus: CameraFrameBus
     private let audioService: AudioService?
+    private let thermalMonitor: ThermalMonitor
     private var taskEngine: any TaskEngine = PlaceholderTaskEngine()
     private(set) var taskStartDate: Date?
     private var trainerActions: [TrainerAction] = []
+    /// Throttle counter for thermal-serious state (skip every other tick).
+    private var thermalThrottleSkip = false
 
     @ObservationIgnored private var runLoopTask: Task<Void, Never>?
     @ObservationIgnored private var reconnectCountdownTask: Task<Void, Never>?
@@ -94,7 +97,8 @@ final class RunnerCoordinator {
         modelRegistry: CoreMLModelRegistry,
         permissionCenter: PermissionCenter,
         frameBus: CameraFrameBus,
-        audioService: AudioService? = nil
+        audioService: AudioService? = nil,
+        thermalMonitor: ThermalMonitor
     ) {
         self.cameraService = cameraService
         self.debugVideoFrameSource = debugVideoFrameSource
@@ -103,6 +107,7 @@ final class RunnerCoordinator {
         self.permissionCenter = permissionCenter
         self.frameBus = frameBus
         self.audioService = audioService
+        self.thermalMonitor = thermalMonitor
     }
 
     // MARK: - Lifecycle
@@ -203,6 +208,7 @@ final class RunnerCoordinator {
             taskEngine.start()
             taskStartDate = Date()
             stateMachine.start()
+            audioService?.startBackground()
             beginRunLoop()
         } catch {
             AppLogger.runtime.fileError("Runner startup failed: \(error.localizedDescription)", category: "runtime")
@@ -216,11 +222,13 @@ final class RunnerCoordinator {
         taskEngine.pause()
         stateMachine.pause()
         runLoopTask?.cancel()
+        audioService?.pauseBackground()
     }
 
     func resume() {
         guard stateMachine.phase == .paused else { return }
         stateMachine.resume()
+        audioService?.resumeBackground()
         beginRunLoop()
     }
 
@@ -260,6 +268,7 @@ final class RunnerCoordinator {
         runLoopTask?.cancel()
         stopFrameSources()
         stopWorkers()
+        audioService?.stopBackground()
         stateMachine.finish()
         AppLogger.runtime.fileInfo("Runner finished", category: "runtime")
     }
@@ -353,7 +362,8 @@ final class RunnerCoordinator {
             startedAt: taskStartDate,
             endedAt: Date(),
             output: latestOutput,
-            handXConnected: bleManager.connectionState == .connected
+            handXConnected: bleManager.connectionState == .connected,
+            thermalStateName: thermalMonitor.displayName
         )
     }
 
@@ -372,6 +382,13 @@ final class RunnerCoordinator {
 
     private func tick() async {
         guard stateMachine.phase == .running else { return }
+
+        // Thermal protection: skip inference entirely when critical; halve rate when serious.
+        if thermalMonitor.shouldPauseInference { return }
+        if thermalMonitor.shouldThrottle {
+            thermalThrottleSkip.toggle()
+            if thermalThrottleSkip { return }
+        }
 
         if selectedMode == .lockedSprint {
             if bleManager.connectionState != .connected && reconnectCountdownTask == nil {

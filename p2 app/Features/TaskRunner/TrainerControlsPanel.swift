@@ -234,6 +234,8 @@ struct TrainerControlsPanel: View {
         PanelSection(title: "Debug", isOpen: $debugOpen) {
             VStack(alignment: .leading, spacing: HXSpacing.sm) {
                 dataRow("Phase", value: coordinator.stateMachine.phase.rawValue)
+                dataRow("Thermal", value: appModel.thermalMonitor.displayName,
+                        valueColor: thermalColor)
                 dataRow("Detections", value: "\(coordinator.latestInferenceStatus.taskDetectionCount)")
                 dataRow("Task Model", value: coordinator.latestInferenceStatus.taskModelLoaded ? "Loaded" : "Loading…")
                 dataRow("Instr. Model", value: coordinator.latestInferenceStatus.instrumentModelLoaded ? "Loaded" : "Loading…")
@@ -269,6 +271,15 @@ struct TrainerControlsPanel: View {
     // MARK: - Shared helpers
 
     private var coordinator: RunnerCoordinator { appModel.runnerCoordinator }
+
+    private var thermalColor: Color {
+        switch appModel.thermalMonitor.thermalState {
+        case .nominal, .fair: return .white
+        case .serious:        return Color.hxWarning
+        case .critical:       return Color.hxDanger
+        @unknown default:     return .white
+        }
+    }
 
     @ViewBuilder
     private func dataRow(_ label: String, value: String, valueColor: Color = .white) -> some View {

@@ -494,7 +494,7 @@ private extension Date {
             startedAt: Date(timeIntervalSinceNow: -Double(i) * 86400),
             endedAt: .now, durationMS: 120_000 + i * 10_000,
             score: 60 + i * 5, completedTargets: 7 + i % 3, totalTargets: 10,
-            accuracyPercent: Double(65 + i * 4), handXUsed: i % 2 == 0, summaryPayload: [:]
+            accuracyPercent: Double(65 + i * 4), handXUsed: i % 2 == 0, summaryPayload: RunPayload()
         )
         ctx.insert(RunSummaryRecord(draft: draft))
     }

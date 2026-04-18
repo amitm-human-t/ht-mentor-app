@@ -168,7 +168,8 @@ struct RunnerHUDView: View {
                 bleManager: MockHandXBLEManager(),
                 modelRegistry: CoreMLModelRegistry(),
                 permissionCenter: PermissionCenter(),
-                frameBus: CameraFrameBus()
+                frameBus: CameraFrameBus(),
+                thermalMonitor: ThermalMonitor()
             )
             c.prepare(task: TaskDefinition.all[0], mode: .guided)
             return c

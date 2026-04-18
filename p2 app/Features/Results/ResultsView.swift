@@ -308,7 +308,7 @@ private struct ResultStatCard: View {
         totalTargets: 10,
         accuracyPercent: 91.2,
         handXUsed: true,
-        summaryPayload: [:]
+        summaryPayload: RunPayload()
     )
     return NavigationStack {
         ResultsView(summary: draft, appModel: AppModel())

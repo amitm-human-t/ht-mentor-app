@@ -23,6 +23,7 @@ final class AppModel {
     let audioService = AudioService()
     let modelRegistry = CoreMLModelRegistry()
     let frameBus = CameraFrameBus()
+    let thermalMonitor = ThermalMonitor()
 
     @ObservationIgnored
     private(set) lazy var runnerCoordinator = RunnerCoordinator(
@@ -32,7 +33,8 @@ final class AppModel {
         modelRegistry: modelRegistry,
         permissionCenter: permissionCenter,
         frameBus: frameBus,
-        audioService: audioService
+        audioService: audioService,
+        thermalMonitor: thermalMonitor
     )
 
     private var userRepository: UserRepository?
