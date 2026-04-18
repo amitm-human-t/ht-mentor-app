@@ -41,8 +41,11 @@ final class DebugLogFile {
         logURL = logsDir.appendingPathComponent("handx-debug.log")
     }
 
+    // Shared formatter — ISO8601DateFormatter is thread-safe for reads.
+    private static let iso8601: ISO8601DateFormatter = ISO8601DateFormatter()
+
     func append(level: String, category: String, message: String) {
-        let ts = ISO8601DateFormatter().string(from: Date())
+        let ts = Self.iso8601.string(from: Date())
         let line = "[\(ts)] [\(level)] [\(category)] \(message)\n"
         queue.async { [weak self] in
             guard let self else { return }
@@ -121,7 +124,9 @@ extension Logger {
 extension DebugLogFile {
     var url: URL { logURL }
     var contents: String {
-        (try? String(contentsOf: logURL, encoding: .utf8)) ?? ""
+        var result = ""
+        queue.sync { result = (try? String(contentsOf: self.logURL, encoding: .utf8)) ?? "" }
+        return result
     }
     func clear() {
         queue.async { [weak self] in

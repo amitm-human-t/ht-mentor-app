@@ -1,6 +1,6 @@
 import Foundation
 import CoreML
-import Vision
+@preconcurrency import Vision
 import AVFoundation
 import OSLog
 
@@ -19,6 +19,9 @@ actor CoreMLModelRegistry {
     private var instrumentModel: LoadedModel?
 
     func prepareForTask(_ task: TaskIdentifier) async throws {
+        // Short-circuit: nothing to do if this task's models are already loaded.
+        if taskModels[task] != nil && instrumentModel != nil { return }
+
         guard let taskAsset = modelAsset(for: task) else { return }
         let taskModel = try loadModel(named: task.rawValue, asset: taskAsset, fallbackLabels: fallbackLabels(for: task))
         let instrumentAsset = BundledAsset(pathComponents: ["models", "instrument"], fileExtension: "mlpackage", kind: .model)
@@ -31,13 +34,21 @@ actor CoreMLModelRegistry {
         AppLogger.inference.info("Prepared instrument model outputs: \(instrumentOutputs, privacy: .public)")
     }
 
-    func taskInference(for task: TaskIdentifier, pixelBuffer: CVPixelBuffer) async -> TaskInferenceSnapshot {
+    func taskInference(
+        for task: TaskIdentifier,
+        pixelBuffer: CVPixelBuffer,
+        exifOrientation: CGImagePropertyOrientation = .downMirrored
+    ) async -> TaskInferenceSnapshot {
         guard let model = taskModels[task] else {
             return TaskInferenceSnapshot(modelLoaded: false, outputNames: [], detections: [])
         }
 
         do {
-            let observations = try await performVisionInference(with: model.visionModel, pixelBuffer: pixelBuffer)
+            let observations = try await performVisionInference(
+                with: model.visionModel,
+                pixelBuffer: pixelBuffer,
+                exifOrientation: exifOrientation
+            )
             let detections = parseYOLODetections(observations: observations, classLabels: model.classLabels)
             if !detections.isEmpty {
                 AppLogger.inference.debug("Task inference produced \(detections.count) detections for \(task.rawValue, privacy: .public)")
@@ -49,13 +60,20 @@ actor CoreMLModelRegistry {
         }
     }
 
-    func instrumentInference(pixelBuffer: CVPixelBuffer) async -> InstrumentInferenceSnapshot {
+    func instrumentInference(
+        pixelBuffer: CVPixelBuffer,
+        exifOrientation: CGImagePropertyOrientation = .downMirrored
+    ) async -> InstrumentInferenceSnapshot {
         guard let instrumentModel else {
             return InstrumentInferenceSnapshot(modelLoaded: false, outputNames: [], tip: nil)
         }
 
         do {
-            let observations = try await performVisionInference(with: instrumentModel.visionModel, pixelBuffer: pixelBuffer)
+            let observations = try await performVisionInference(
+                with: instrumentModel.visionModel,
+                pixelBuffer: pixelBuffer,
+                exifOrientation: exifOrientation
+            )
             let detections = parseYOLODetections(observations: observations, classLabels: instrumentModel.classLabels)
             let tipDetection = detections.max(by: { $0.confidence < $1.confidence })
             let tip = tipDetection.map {
@@ -117,29 +135,31 @@ actor CoreMLModelRegistry {
 
     private func performVisionInference(
         with visionModel: VNCoreMLModel,
-        pixelBuffer: CVPixelBuffer
+        pixelBuffer: CVPixelBuffer,
+        exifOrientation: CGImagePropertyOrientation = .downMirrored
     ) async throws -> [VNObservation] {
-        try await withCheckedThrowingContinuation { continuation in
-            let request = VNCoreMLRequest(model: visionModel) { request, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                    return
+        // Run Vision synchronously inside a detached task so the actor is free
+        // during the 50-150ms inference window — enables parallel task + instrument
+        // inference and keeps the actor responsive to other callers.
+        try await Task.detached(priority: .userInitiated) {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[VNObservation], Error>) in
+                let request = VNCoreMLRequest(model: visionModel) { req, error in
+                    if let error { continuation.resume(throwing: error) }
+                    else { continuation.resume(returning: req.results ?? []) }
                 }
-                continuation.resume(returning: request.results ?? [])
+                request.imageCropAndScaleOption = .scaleFill
+                let handler = VNImageRequestHandler(
+                    cvPixelBuffer: pixelBuffer,
+                    orientation: exifOrientation,
+                    options: [:]
+                )
+                do {
+                    try handler.perform([request])
+                } catch {
+                    continuation.resume(throwing: error)
+                }
             }
-            request.imageCropAndScaleOption = .scaleFill
-
-            do {
-                // App is always landscape-right. Pixel buffers arrive unrotated from
-                // AVCaptureVideoDataOutput (videoRotationAngle=0), so we tell Vision
-                // the correct EXIF orientation (.downMirrored) so it can normalize the
-                // image before running the model. Reference: mentor tests CameraViewController.
-                let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .downMirrored, options: [:])
-                try handler.perform([request])
-            } catch {
-                continuation.resume(throwing: error)
-            }
-        }
+        }.value
     }
 
     private func parseYOLODetections(

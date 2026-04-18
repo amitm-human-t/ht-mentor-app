@@ -113,6 +113,13 @@ final class AppModel {
         path.append(.userManagement)
     }
 
+    func prefetchModels(for taskID: TaskIdentifier) {
+        let registry = modelRegistry
+        Task(priority: .background) {
+            try? await registry.prepareForTask(taskID)
+        }
+    }
+
     func startTask(_ task: TaskDefinition) {
         guard canStartTasks else {
             openDiagnostics()

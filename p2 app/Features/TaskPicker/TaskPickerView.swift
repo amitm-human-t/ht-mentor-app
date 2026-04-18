@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - TaskPickerView
 
@@ -123,6 +124,9 @@ private struct TaskCard: View {
         .padding(HXSpacing.xl)
         .frame(maxWidth: .infinity, alignment: .leading)
         .glassEffect(.regular.interactive(), in: .rect(cornerRadius: HXRadius.lg))
+        .task {
+            appModel.prefetchModels(for: task.id)
+        }
     }
 
     private var cardTopRow: some View {
@@ -149,6 +153,7 @@ private struct TaskCard: View {
             ForEach(visibleModes, id: \.self) { mode in
                 Button {
                     guard appModel.canStartTasks else { return }
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     appModel.runnerCoordinator.prepare(task: task, mode: mode)
                     appModel.startTask(task)
                 } label: {

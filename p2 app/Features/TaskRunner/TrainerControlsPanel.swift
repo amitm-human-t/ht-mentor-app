@@ -68,12 +68,22 @@ struct TrainerControlsPanel: View {
                     Button {
                         Task { await coordinator.start() }
                     } label: {
-                        Label("Start", systemImage: "play.fill")
-                            .font(.hxHeadline)
-                            .frame(maxWidth: .infinity)
+                        Group {
+                            if coordinator.isModelLoading {
+                                HStack(spacing: 6) {
+                                    ProgressView().tint(.white).scaleEffect(0.75)
+                                    Text("Loading…")
+                                }
+                            } else {
+                                Label("Start", systemImage: "play.fill")
+                            }
+                        }
+                        .font(.hxHeadline)
+                        .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.glassProminent)
                     .tint(Color.hxCyan)
+                    .disabled(coordinator.isModelLoading)
                 } else if phase == .running {
                     Button {
                         coordinator.pause()
@@ -233,6 +243,25 @@ struct TrainerControlsPanel: View {
                         .foregroundStyle(Color.hxDanger)
                         .lineLimit(3)
                 }
+                #if DEBUG
+                Divider().background(Color.hxSurfaceBorder)
+                Toggle(isOn: Binding(
+                    get: { coordinator.debugBoundingBoxesVisible },
+                    set: { _ in coordinator.toggleDebugBoundingBoxes() }
+                )) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "square.dashed")
+                            .foregroundStyle(Color.hxAmber)
+                        Text("Raw Bounding Boxes")
+                            .font(.hxCaption)
+                    }
+                }
+                .tint(Color.hxAmber)
+                if coordinator.debugBoundingBoxesVisible {
+                    dataRow("Raw Detects", value: "\(coordinator.debugAllDetections.count)")
+                    dataRow("Instr. Tip", value: coordinator.debugInstrumentTip != nil ? "Detected" : "None")
+                }
+                #endif
             }
         }
     }

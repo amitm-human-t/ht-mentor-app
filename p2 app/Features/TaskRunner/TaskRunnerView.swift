@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct TaskRunnerView: View {
     let appModel: AppModel
@@ -148,15 +149,26 @@ struct TaskRunnerView: View {
             // Primary run control
             if phase == .idle || phase == .error {
                 Button {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     Task { await runnerCoordinator.start() }
                 } label: {
-                    Label("Start", systemImage: "play.fill")
-                        .font(.hxCallout)
+                    Group {
+                        if runnerCoordinator.isModelLoading {
+                            HStack(spacing: 6) {
+                                ProgressView().tint(.white).scaleEffect(0.75)
+                                Text("Loading…").font(.hxCallout)
+                            }
+                        } else {
+                            Label("Start", systemImage: "play.fill").font(.hxCallout)
+                        }
+                    }
                 }
                 .buttonStyle(.glassProminent)
                 .tint(Color.hxCyan)
+                .disabled(runnerCoordinator.isModelLoading)
             } else if phase == .running {
                 Button {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     runnerCoordinator.pause()
                 } label: {
                     Label("Pause", systemImage: "pause.fill")
@@ -165,6 +177,7 @@ struct TaskRunnerView: View {
                 .buttonStyle(.glass)
             } else if phase == .paused {
                 Button {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     runnerCoordinator.resume()
                 } label: {
                     Label("Resume", systemImage: "play.fill")
@@ -174,6 +187,7 @@ struct TaskRunnerView: View {
                 .tint(Color.hxSuccess)
             } else if phase == .finished {
                 Button {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     if let summary = runnerCoordinator.buildSummary() {
                         runResultsShown = true
                         appModel.openResults(summary: summary)

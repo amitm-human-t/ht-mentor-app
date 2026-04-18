@@ -12,10 +12,8 @@ final class RunnerCoordinator {
 
         var title: String {
             switch self {
-            case .liveCamera:
-                return "Live Camera"
-            case .debugVideo:
-                return "Debug Video"
+            case .liveCamera:  return "Live Camera"
+            case .debugVideo:  return "Debug Video"
             }
         }
     }
@@ -41,9 +39,32 @@ final class RunnerCoordinator {
         instrumentTipDetected: false
     )
 
+    /// True while models are loading in the background after prepare().
+    /// The Start button should be disabled / show a spinner while this is true.
+    private(set) var isModelLoading = false
+
     /// Non-nil during a BLE reconnect window in `.lockedSprint` mode.
-    /// Counts down from 10 to 0; reaching 0 auto-finishes the run.
     private(set) var disconnectCountdown: Int? = nil
+
+    // MARK: - Debug (only compiled in DEBUG builds)
+
+    #if DEBUG
+    private(set) var debugBoundingBoxesVisible = false
+    /// Raw task-model detections from the last inference tick. Only populated
+    /// while debugBoundingBoxesVisible is true.
+    private(set) var debugAllDetections: [TaskDetection] = []
+    private(set) var debugInstrumentTip: InstrumentTipPayload? = nil
+
+    func toggleDebugBoundingBoxes() {
+        debugBoundingBoxesVisible.toggle()
+        if !debugBoundingBoxesVisible {
+            debugAllDetections = []
+            debugInstrumentTip = nil
+        }
+    }
+    #endif
+
+    // MARK: - Stored services
 
     private let cameraService: CameraService
     private let debugVideoFrameSource: DebugVideoFrameSource
@@ -55,10 +76,16 @@ final class RunnerCoordinator {
     private var taskEngine: any TaskEngine = PlaceholderTaskEngine()
     private(set) var taskStartDate: Date?
     private var trainerActions: [TrainerAction] = []
-    private var runLoopTask: Task<Void, Never>?
-    private var reconnectCountdownTask: Task<Void, Never>?
-    private var taskInferenceWorker: TaskInferenceWorker?
-    private var instrumentInferenceWorker: InstrumentInferenceWorker?
+
+    @ObservationIgnored private var runLoopTask: Task<Void, Never>?
+    @ObservationIgnored private var reconnectCountdownTask: Task<Void, Never>?
+    @ObservationIgnored private var taskInferenceWorker: TaskInferenceWorker?
+    @ObservationIgnored private var instrumentInferenceWorker: InstrumentInferenceWorker?
+
+    /// Background model-preload task kicked off in prepare().
+    /// Task<Void, Never> — errors are captured in modelLoadError.
+    @ObservationIgnored private var modelPreloadTask: Task<Void, Never>?
+    @ObservationIgnored private var modelLoadError: Error?
 
     init(
         cameraService: CameraService,
@@ -77,6 +104,8 @@ final class RunnerCoordinator {
         self.frameBus = frameBus
         self.audioService = audioService
     }
+
+    // MARK: - Lifecycle
 
     func prepare(task: TaskDefinition, mode: TaskMode) {
         activeTask = task
@@ -102,38 +131,81 @@ final class RunnerCoordinator {
         )
         trainerActions = []
         stateMachine = RunStateMachine()
+
+        // Pre-warm models in the background so Start responds instantly.
+        // The actor short-circuits if models are already loaded.
+        modelPreloadTask?.cancel()
+        modelLoadError = nil
+        isModelLoading = true
+        let registry = modelRegistry
+        let taskID = task.id
+        modelPreloadTask = Task {
+            do {
+                try await registry.prepareForTask(taskID)
+            } catch {
+                modelLoadError = error
+                AppLogger.inference.fileError(
+                    "Model preload failed for \(taskID.rawValue): \(error.localizedDescription)",
+                    category: "inference"
+                )
+            }
+            isModelLoading = false
+        }
     }
 
     func start() async {
         guard let activeTask else { return }
         currentFailure = nil
-        AppLogger.runtime.info("Starting task \(activeTask.id.rawValue, privacy: .public) mode \(self.selectedMode.rawValue, privacy: .public) source \(self.inputSource.rawValue, privacy: .public)")
+        AppLogger.runtime.fileInfo(
+            "Starting \(activeTask.id.rawValue) mode \(selectedMode.rawValue) source \(inputSource.rawValue)",
+            category: "runtime"
+        )
+
         if inputSource == .liveCamera {
             let permissions = await permissionCenter.refresh()
             guard permissions.camera == .authorized else {
                 currentFailure = .cameraPermissionDenied
-                AppLogger.runtime.error("Runner blocked by camera permission")
+                AppLogger.runtime.fileError("Runner blocked by camera permission", category: "runtime")
                 stateMachine.fail()
                 return
             }
         }
         if selectedMode == .lockedSprint && bleManager.connectionState != .connected {
             currentFailure = .bleRequired
-            AppLogger.runtime.error("Runner blocked because BLE is required for locked sprint")
+            AppLogger.runtime.fileError("Runner blocked — BLE required for locked sprint", category: "runtime")
             stateMachine.fail()
             return
         }
+
+        // Await the background preload (instant if already done; short if still loading).
+        await modelPreloadTask?.value
+
+        if let loadError = modelLoadError {
+            AppLogger.runtime.fileError("Runner start aborted — model load error: \(loadError.localizedDescription)", category: "runtime")
+            currentFailure = .startup(loadError.localizedDescription)
+            stateMachine.fail()
+            return
+        }
+
         do {
-            try await modelRegistry.prepareForTask(activeTask.id)
             try await startFrameSource()
-            taskInferenceWorker = TaskInferenceWorker(task: activeTask.id, frameBus: frameBus, modelRegistry: modelRegistry)
-            instrumentInferenceWorker = InstrumentInferenceWorker(frameBus: frameBus, modelRegistry: modelRegistry)
+
+            let taskWorker = TaskInferenceWorker(
+                task: activeTask.id, frameBus: frameBus, modelRegistry: modelRegistry)
+            await taskWorker.start()
+            let instrWorker = InstrumentInferenceWorker(
+                frameBus: frameBus, modelRegistry: modelRegistry)
+            await instrWorker.start()
+
+            taskInferenceWorker = taskWorker
+            instrumentInferenceWorker = instrWorker
+
             taskEngine.start()
             taskStartDate = Date()
             stateMachine.start()
             beginRunLoop()
         } catch {
-            AppLogger.runtime.error("Runner startup failed: \(error.localizedDescription, privacy: .public)")
+            AppLogger.runtime.fileError("Runner startup failed: \(error.localizedDescription)", category: "runtime")
             currentFailure = .startup(error.localizedDescription)
             stateMachine.fail()
         }
@@ -155,8 +227,9 @@ final class RunnerCoordinator {
     func reset() {
         runLoopTask?.cancel()
         stopFrameSources()
+        stopWorkers()
         taskEngine.reset()
-        AppLogger.runtime.info("Runner reset")
+        AppLogger.runtime.fileInfo("Runner reset", category: "runtime")
         latestOutput = TaskStepOutput(
             statusText: "Reset",
             score: 0,
@@ -173,6 +246,10 @@ final class RunnerCoordinator {
             taskDetectionCount: 0,
             instrumentTipDetected: false
         )
+        #if DEBUG
+        debugAllDetections = []
+        debugInstrumentTip = nil
+        #endif
         stateMachine.reset()
     }
 
@@ -182,34 +259,34 @@ final class RunnerCoordinator {
         disconnectCountdown = nil
         runLoopTask?.cancel()
         stopFrameSources()
+        stopWorkers()
         stateMachine.finish()
-        AppLogger.runtime.info("Runner finished")
+        AppLogger.runtime.fileInfo("Runner finished", category: "runtime")
     }
 
-    /// Switch the active frame source (camera ↔ debug video).
-    /// Safe to call at any run phase — pauses the run if active, swaps source, then resumes.
+    // MARK: - Input source switching
+
     func switchInputSource(to newSource: InputSource) async {
         guard newSource != inputSource else { return }
-        AppLogger.runtime.info("Switching input source: \(self.inputSource.rawValue, privacy: .public) → \(newSource.rawValue, privacy: .public)")
+        AppLogger.runtime.fileInfo(
+            "Switching input source: \(inputSource.rawValue) → \(newSource.rawValue)",
+            category: "runtime"
+        )
 
         let wasRunning = stateMachine.phase == .running
-        if wasRunning {
-            runLoopTask?.cancel()
-        }
+        if wasRunning { runLoopTask?.cancel() }
 
-        // Stop both sources — workers stay subscribed to frameBus, just stop feeding it
         cameraService.stopSession()
         debugVideoFrameSource.stop()
 
         inputSource = newSource
 
         if wasRunning || stateMachine.phase == .paused {
-            // Only restart frame source if we were actually running/paused (not idle/finished)
             do {
                 try await startFrameSource()
                 if wasRunning { beginRunLoop() }
             } catch {
-                AppLogger.runtime.error("Frame source switch failed: \(error.localizedDescription, privacy: .public)")
+                AppLogger.runtime.fileError("Frame source switch failed: \(error.localizedDescription)", category: "runtime")
                 currentFailure = .startup(error.localizedDescription)
                 stateMachine.fail()
             }
@@ -218,13 +295,11 @@ final class RunnerCoordinator {
 
     // MARK: - BLE Disconnect Policy
 
-    /// Called from tick() when a BLE drop is detected during a locked-sprint run.
-    /// Pauses immediately and starts a 10-second reconnect window.
     private func handleBLEDisconnect() {
         guard stateMachine.phase == .running, selectedMode == .lockedSprint else { return }
-        guard reconnectCountdownTask == nil else { return }  // already counting down
+        guard reconnectCountdownTask == nil else { return }
 
-        AppLogger.runtime.warning("HandX disconnected during locked sprint — starting 10s reconnect window")
+        AppLogger.runtime.fileWarning("HandX disconnected during locked sprint — starting 10s reconnect window", category: "runtime")
         pause()
 
         disconnectCountdown = 10
@@ -235,25 +310,23 @@ final class RunnerCoordinator {
                 guard !Task.isCancelled else { return }
                 self.disconnectCountdown = remaining
             }
-            // Countdown expired — check one last time whether BLE reconnected
             guard !Task.isCancelled else { return }
             if self.bleManager.connectionState == .connected {
                 self.clearReconnectState()
                 self.resume()
-                AppLogger.runtime.info("HandX reconnected — resuming run")
+                AppLogger.runtime.fileInfo("HandX reconnected — resuming run", category: "runtime")
             } else {
                 self.clearReconnectState()
                 self.currentFailure = .bleDisconnectTimeout
                 self.finish()
-                AppLogger.runtime.error("HandX reconnect timed out — run ended")
+                AppLogger.runtime.fileError("HandX reconnect timed out — run ended", category: "runtime")
             }
         }
     }
 
-    /// Called when BLE reconnects during the countdown window.
     private func handleBLEReconnect() {
         guard reconnectCountdownTask != nil else { return }
-        AppLogger.runtime.info("HandX reconnected within window — cancelling countdown")
+        AppLogger.runtime.fileInfo("HandX reconnected within window — cancelling countdown", category: "runtime")
         clearReconnectState()
         resume()
     }
@@ -264,8 +337,9 @@ final class RunnerCoordinator {
         disconnectCountdown = nil
     }
 
-    /// Convenience for HUD and panel views — avoids leaking `bleManager` reference.
     var bleConnected: Bool { bleManager.connectionState == .connected }
+
+    // MARK: - Trainer
 
     func registerTrainerAction(_ kind: TrainerAction.Kind) {
         trainerActions.append(.init(kind: kind, timestamp: Date().timeIntervalSinceReferenceDate))
@@ -283,6 +357,8 @@ final class RunnerCoordinator {
         )
     }
 
+    // MARK: - Run Loop
+
     private func beginRunLoop() {
         runLoopTask?.cancel()
         runLoopTask = Task { [weak self] in
@@ -297,7 +373,6 @@ final class RunnerCoordinator {
     private func tick() async {
         guard stateMachine.phase == .running else { return }
 
-        // BLE disconnect detection for locked-sprint mode
         if selectedMode == .lockedSprint {
             if bleManager.connectionState != .connected && reconnectCountdownTask == nil {
                 handleBLEDisconnect()
@@ -308,8 +383,14 @@ final class RunnerCoordinator {
         }
 
         let elapsed = Date().timeIntervalSince(taskStartDate ?? Date())
-        let taskInference = await taskInferenceWorker?.evaluateLatestFrame() ?? TaskInferenceSnapshot(modelLoaded: false, outputNames: [], detections: [])
-        let instrumentInference = await instrumentInferenceWorker?.evaluateLatestFrame() ?? InstrumentInferenceSnapshot(modelLoaded: false, outputNames: [], tip: nil)
+
+        // Non-blocking snapshot reads — workers update independently at camera fps.
+        // No await on inference: just grab whatever the worker last computed.
+        let taskInference = await taskInferenceWorker?.snapshot()
+            ?? TaskInferenceSnapshot(modelLoaded: false, outputNames: [], detections: [])
+        let instrumentInference = await instrumentInferenceWorker?.snapshot()
+            ?? InstrumentInferenceSnapshot(modelLoaded: false, outputNames: [], tip: nil)
+
         let inputs = TaskInputs(
             elapsed: elapsed,
             handXSample: bleManager.latestSample,
@@ -327,7 +408,6 @@ final class RunnerCoordinator {
         latestInferenceStatus = inputs.inferenceInfo
         let output = taskEngine.step(inputs: inputs)
 
-        // Dispatch audio events emitted by the engine this tick
         for event in output.events where event.name == "audio_callout" {
             if let dir = event.payload["dir"], let file = event.payload["file"] {
                 audioService?.playCallout(dir: dir, file: file)
@@ -335,7 +415,16 @@ final class RunnerCoordinator {
         }
 
         latestOutput = output
+
+        #if DEBUG
+        if debugBoundingBoxesVisible {
+            debugAllDetections = taskInference.detections
+            debugInstrumentTip = instrumentInference.tip
+        }
+        #endif
     }
+
+    // MARK: - Private helpers
 
     private func engine(for task: TaskIdentifier) -> any TaskEngine {
         switch task {
@@ -357,11 +446,23 @@ final class RunnerCoordinator {
     }
 
     private func stopFrameSources() {
-        // Stop both unconditionally — safe to call stop on an already-stopped source
         cameraService.stopSession()
         debugVideoFrameSource.stop()
     }
+
+    private func stopWorkers() {
+        let tw = taskInferenceWorker
+        let iw = instrumentInferenceWorker
+        Task {
+            await tw?.stop()
+            await iw?.stop()
+        }
+        taskInferenceWorker = nil
+        instrumentInferenceWorker = nil
+    }
 }
+
+// MARK: - RunnerFailure
 
 enum RunnerFailure: LocalizedError, Equatable {
     case cameraPermissionDenied

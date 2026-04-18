@@ -1,6 +1,6 @@
 @preconcurrency import AVFoundation
 import Foundation
-
+import UIKit
 import OSLog
 
 /// Owns the live rear-camera capture session and publishes frames into the
@@ -27,6 +27,7 @@ final class CameraService: NSObject {
     @ObservationIgnored private var configured = false
     @ObservationIgnored private var frameBus: CameraFrameBus?
     private var configurationTask: Task<Void, Error>?
+    @ObservationIgnored private var orientationObserver: AnyObject?
 
     func refreshAuthorizationStatus() async {
         authorizationStatus = AVCaptureDevice.authorizationStatus(for: .video)
@@ -67,6 +68,47 @@ final class CameraService: NSObject {
             }
         }
         sessionState = .running
+        registerOrientationObserverIfNeeded()
+        applyCurrentOrientation()
+    }
+
+    // MARK: - Orientation tracking
+
+    private func registerOrientationObserverIfNeeded() {
+        guard orientationObserver == nil else { return }
+        orientationObserver = NotificationCenter.default.addObserver(
+            forName: UIDevice.orientationDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.applyCurrentOrientation()
+            }
+        }
+    }
+
+    func applyCurrentOrientation() {
+        let orientation: UIInterfaceOrientation
+        if let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive })
+            ?? UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first {
+            orientation = scene.effectiveGeometry.interfaceOrientation
+        } else {
+            orientation = .landscapeRight
+        }
+
+        let angle: CGFloat = orientation == .landscapeLeft ? 180 : 0
+        sampleBufferDelegate.exifOrientation = orientation == .landscapeLeft ? .up : .downMirrored
+        AppLogger.runtime.debug("Camera orientation updated — angle=\(Int(angle)) exif=\(orientation == .landscapeLeft ? "up" : "downMirrored", privacy: .public)")
+
+        let capturedOutput = videoOutput
+        sessionQueue.async {
+            if let connection = capturedOutput.connection(with: .video),
+               connection.isVideoRotationAngleSupported(angle) {
+                connection.videoRotationAngle = angle
+            }
+        }
     }
 
     func stopSession() {
@@ -156,6 +198,8 @@ final class CameraService: NSObject {
 
 private final class SampleBufferDelegate: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     nonisolated(unsafe) var frameBus: CameraFrameBus?
+    /// Updated by CameraService.applyCurrentOrientation() when device rotates.
+    nonisolated(unsafe) var exifOrientation: CGImagePropertyOrientation = .downMirrored
 
     nonisolated func captureOutput(
         _ output: AVCaptureOutput,
@@ -169,8 +213,9 @@ private final class SampleBufferDelegate: NSObject, AVCaptureVideoDataOutputSamp
             return
         }
         let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds
+        let orientation = exifOrientation
         Task {
-            await frameBus.publish(pixelBuffer: pixelBuffer, timestamp: timestamp)
+            await frameBus.publish(pixelBuffer: pixelBuffer, timestamp: timestamp, exifOrientation: orientation)
         }
     }
 }

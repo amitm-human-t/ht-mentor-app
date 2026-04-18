@@ -8,19 +8,30 @@ import OSLog
 /// Not Observable — the converter is read at render time by the overlay.
 final class PreviewCoordinate {
     weak var hostView: PreviewHostView?
+    /// Set from AppPreviewStageView via onGeometryChange so the debug-video
+    /// fallback path can scale normalised rects to view pixels.
+    var viewSize: CGSize = .zero
 
     /// Convert a normalised YOLO rect to SwiftUI view coordinates.
-    /// Falls back to the flip-based approximation when the view is unavailable.
+    /// Live camera path: uses layerRectConverted for accurate pixel coords.
+    /// Debug video path: flips then scales to view size.
     func convert(_ rect: CGRect) -> CGRect {
         if let hostView {
             return hostView.convertYOLORect(rect)
         }
-        // Flip-only approximation: correct for landscape when camera fills the view.
-        return CGRect(
+        // Flip to match Vision output space, then scale to view pixels.
+        let flipped = CGRect(
             x: 1.0 - rect.maxX,
             y: 1.0 - rect.minY - rect.height,
             width: rect.width,
             height: rect.height
+        )
+        guard viewSize.width > 0 && viewSize.height > 0 else { return flipped }
+        return CGRect(
+            x: flipped.origin.x * viewSize.width,
+            y: flipped.origin.y * viewSize.height,
+            width: flipped.size.width * viewSize.width,
+            height: flipped.size.height * viewSize.height
         )
     }
 }
@@ -34,10 +45,6 @@ struct CameraPreviewView: UIViewRepresentable {
         let view = PreviewHostView()
         view.previewLayer.videoGravity = .resizeAspectFill
         view.previewLayer.session = session
-        // App is landscape-only. Ensure the preview connection uses the correct
-        // landscape-right rotation so that layerRectConverted returns accurate
-        // view-space coordinates for the detection box overlay.
-        setLandscapeRotation(on: view.previewLayer)
         coordinate.hostView = view
         AppLogger.runtime.debug("Created camera preview host view")
         return view
@@ -45,14 +52,7 @@ struct CameraPreviewView: UIViewRepresentable {
 
     func updateUIView(_ uiView: PreviewHostView, context: Context) {
         uiView.previewLayer.session = session
-        setLandscapeRotation(on: uiView.previewLayer)
         coordinate.hostView = uiView
-    }
-
-    private func setLandscapeRotation(on layer: AVCaptureVideoPreviewLayer) {
-        guard let connection = layer.connection,
-              connection.isVideoRotationAngleSupported(0) else { return }
-        connection.videoRotationAngle = 0
     }
 }
 
@@ -81,16 +81,26 @@ final class PreviewHostView: UIView {
         layer as! AVCaptureVideoPreviewLayer
     }
 
-    /// Convert a normalised YOLO bounding rect (origin top-left, 0…1 in both axes,
-    /// using the model's coordinate space where (0,0) is the top-left of the input image
-    /// with the device in landscape-right) to a CGRect in this view's coordinate space.
-    ///
-    /// The Vision metadata coordinate system has (0,0) at bottom-left and x going right,
-    /// y going up, so we must flip before calling `layerRectConverted`.
-    ///
-    /// This is the same pattern validated in the mentor-tests reference app:
-    ///   metadataRect.x = 1 - detection.rect.maxX
-    ///   metadataRect.y = 1 - detection.rect.minY - detection.rect.height
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        applyOrientationRotation()
+    }
+
+    /// Updates the preview layer rotation to match the current interface orientation.
+    /// landscapeLeft=180°, landscapeRight=0° — matches the output connection rotation
+    /// set by CameraService.applyCurrentOrientation().
+    private func applyOrientationRotation() {
+        guard let connection = previewLayer.connection else { return }
+        let orientation = window?.windowScene?.effectiveGeometry.interfaceOrientation ?? .landscapeRight
+        let angle: CGFloat = orientation == .landscapeLeft ? 180 : 0
+        if connection.isVideoRotationAngleSupported(angle) {
+            connection.videoRotationAngle = angle
+        }
+    }
+
+    /// Convert a normalised YOLO bounding rect to this view's coordinate space.
+    /// Flips x/y to match Vision's metadata coordinate system, then calls
+    /// layerRectConverted which accounts for preview rotation and gravity.
     func convertYOLORect(_ normalized: CGRect) -> CGRect {
         let metadataRect = CGRect(
             x: 1.0 - normalized.maxX,

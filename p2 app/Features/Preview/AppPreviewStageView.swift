@@ -25,11 +25,25 @@ struct AppPreviewStageView: View {
         ZStack(alignment: .topTrailing) {
             previewSurface
                 .background(Color.black)
+                .onGeometryChange(for: CGSize.self, of: { $0.size }) { newSize in
+                    previewCoordinate.viewSize = newSize
+                }
                 .overlay {
                     PreviewOverlayView(
                         payload: runnerCoordinator.latestOutput.overlayPayload,
                         coordinateConverter: previewCoordinate.convert
                     )
+                }
+                .overlay {
+                    #if DEBUG
+                    if runnerCoordinator.debugBoundingBoxesVisible {
+                        DebugDetectionOverlay(
+                            detections: runnerCoordinator.debugAllDetections,
+                            tip: runnerCoordinator.debugInstrumentTip,
+                            coordinateConverter: previewCoordinate.convert
+                        )
+                    }
+                    #endif
                 }
                 .clipShape(RoundedRectangle(cornerRadius: compact ? 20 : 28, style: .continuous))
 
@@ -214,6 +228,7 @@ private struct PreviewOverlayView: View {
 
     // MARK: - Coordinate Mapping
 
+
     /// Map a normalised YOLO rect through the preview layer coordinate converter,
     /// then scale to the SwiftUI view size.
     private func mapYOLO(rect: CGRect, into size: CGSize) -> CGRect {
@@ -232,3 +247,56 @@ private struct PreviewOverlayView: View {
         return CGPoint(x: flipped.x * size.width, y: flipped.y * size.height)
     }
 }
+
+// MARK: - Debug Detection Overlay (DEBUG builds only)
+
+#if DEBUG
+/// Draws raw YOLO bounding boxes and the instrument tip as amber/cyan overlays.
+/// Uses the same coordinate converter as PreviewOverlayView so boxes align
+/// correctly with the camera preview.
+private struct DebugDetectionOverlay: View {
+    let detections: [TaskDetection]
+    let tip: InstrumentTipPayload?
+    let coordinateConverter: (CGRect) -> CGRect
+
+    var body: some View {
+        ZStack {
+            ForEach(detections) { detection in
+                let rect = coordinateConverter(detection.boundingBox)
+                ZStack(alignment: .topLeading) {
+                    Rectangle()
+                        .stroke(Color.hxAmber.opacity(0.75), lineWidth: 1.5)
+                        .frame(width: rect.width, height: rect.height)
+                        .position(x: rect.midX, y: rect.midY)
+
+                    Text("\(detection.label) \(Int(detection.confidence * 100))%")
+                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(Color.hxAmber)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 2)
+                        .background(Color.black.opacity(0.65))
+                        .position(x: rect.midX, y: max(10, rect.minY - 9))
+                }
+            }
+
+            if let tip {
+                let tipRect = coordinateConverter(CGRect(
+                    x: tip.location.x - 0.015,
+                    y: tip.location.y - 0.015,
+                    width: 0.03,
+                    height: 0.03
+                ))
+                Circle()
+                    .fill(Color.hxCyan.opacity(0.8))
+                    .frame(width: 10, height: 10)
+                    .position(x: tipRect.midX, y: tipRect.midY)
+                Circle()
+                    .stroke(Color.hxCyan, lineWidth: 1.5)
+                    .frame(width: 22, height: 22)
+                    .position(x: tipRect.midX, y: tipRect.midY)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+#endif
