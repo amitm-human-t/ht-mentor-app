@@ -96,6 +96,25 @@ struct TaskStepOutput: Sendable {
     let progress: ProgressSnapshot
     let events: [RunEvent]
     let overlayPayload: OverlayPayload
+    let debugOverlayPayload: OverlayPayload
+
+    init(
+        statusText: String,
+        score: Int,
+        targetInfo: String,
+        progress: ProgressSnapshot,
+        events: [RunEvent],
+        overlayPayload: OverlayPayload,
+        debugOverlayPayload: OverlayPayload = .empty
+    ) {
+        self.statusText = statusText
+        self.score = score
+        self.targetInfo = targetInfo
+        self.progress = progress
+        self.events = events
+        self.overlayPayload = overlayPayload
+        self.debugOverlayPayload = debugOverlayPayload
+    }
 }
 
 struct ProgressSnapshot: Sendable {

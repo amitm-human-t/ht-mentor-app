@@ -263,6 +263,22 @@ struct TrainerControlsPanel: View {
                     dataRow("Raw Detects", value: "\(coordinator.debugAllDetections.count)")
                     dataRow("Instr. Tip", value: coordinator.debugInstrumentTip != nil ? "Detected" : "None")
                 }
+
+                Toggle(isOn: Binding(
+                    get: { coordinator.debugImageProcessingVisible },
+                    set: { _ in coordinator.toggleDebugImageProcessing() }
+                )) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "camera.filters")
+                            .foregroundStyle(Color.hxCyan)
+                        Text("Image Processing Overlay")
+                            .font(.hxCaption)
+                    }
+                }
+                .tint(Color.hxCyan)
+                if coordinator.debugImageProcessingVisible {
+                    dataRow("Algo Elements", value: "\(coordinator.debugImageProcessingPayload.elements.count)")
+                }
                 #endif
             }
         }

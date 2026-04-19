@@ -50,16 +50,25 @@ final class RunnerCoordinator {
 
     #if DEBUG
     private(set) var debugBoundingBoxesVisible = false
+    private(set) var debugImageProcessingVisible = false
     /// Raw task-model detections from the last inference tick. Only populated
     /// while debugBoundingBoxesVisible is true.
     private(set) var debugAllDetections: [TaskDetection] = []
     private(set) var debugInstrumentTip: InstrumentTipPayload? = nil
+    private(set) var debugImageProcessingPayload: OverlayPayload = .empty
 
     func toggleDebugBoundingBoxes() {
         debugBoundingBoxesVisible.toggle()
         if !debugBoundingBoxesVisible {
             debugAllDetections = []
             debugInstrumentTip = nil
+        }
+    }
+
+    func toggleDebugImageProcessing() {
+        debugImageProcessingVisible.toggle()
+        if !debugImageProcessingVisible {
+            debugImageProcessingPayload = .empty
         }
     }
     #endif
@@ -145,6 +154,7 @@ final class RunnerCoordinator {
         #if DEBUG
         debugAllDetections = []
         debugInstrumentTip = nil
+        debugImageProcessingPayload = .empty
         #endif
 
         // Pre-warm models in the background so Start responds instantly.
@@ -319,6 +329,7 @@ final class RunnerCoordinator {
         #if DEBUG
         debugAllDetections = []
         debugInstrumentTip = nil
+        debugImageProcessingPayload = .empty
         #endif
         stateMachine.reset()
     }
@@ -343,6 +354,7 @@ final class RunnerCoordinator {
         #if DEBUG
         debugAllDetections = []
         debugInstrumentTip = nil
+        debugImageProcessingPayload = .empty
         #endif
     }
 
@@ -511,7 +523,18 @@ final class RunnerCoordinator {
             debugAllDetections = taskInference.detections
             debugInstrumentTip = instrumentInference.tip
         }
+        if debugImageProcessingVisible {
+            debugImageProcessingPayload = output.debugOverlayPayload
+        }
         #endif
+
+        if stateMachine.phase == .running,
+           selectedMode != .freestyle,
+           selectedMode != .manual,
+           output.progress.total > 0,
+           output.progress.completed >= output.progress.total {
+            finish()
+        }
     }
 
     // MARK: - Private helpers

@@ -11,8 +11,15 @@
 
 ## Git State
 
-**Active branch:** `main`  
+**Active branch:** `cline-session-windows`  
 **Remote:** `https://github.com/amitm-human-t/ht-mentor-app`
+
+### Current WIP (not yet validated on macOS/Xcode)
+
+- KeyLock engine upgraded toward KeyLockV2-style flow (dual-key sequencing, active-key guidance, occupancy guards, slot-window hold acceptance)
+- Runner debug pipeline extended with image-processing overlay payload + toggle
+- Auto-finish guard added in `RunnerCoordinator` for non-freestyle/non-manual modes when progress reaches total
+- UI responsiveness contract preserved: all heavy work remains in inference/task pipeline; no UI-thread blocking paths introduced
 
 ### Commit Log
 

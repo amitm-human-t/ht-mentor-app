@@ -43,6 +43,12 @@ struct AppPreviewStageView: View {
                             coordinateConverter: previewCoordinate.convert
                         )
                     }
+                    if runnerCoordinator.debugImageProcessingVisible {
+                        PreviewOverlayView(
+                            payload: runnerCoordinator.debugImageProcessingPayload,
+                            coordinateConverter: previewCoordinate.convert
+                        )
+                    }
                     #endif
                 }
                 .clipShape(RoundedRectangle(cornerRadius: compact ? 20 : 28, style: .continuous))
