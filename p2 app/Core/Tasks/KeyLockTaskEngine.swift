@@ -78,9 +78,11 @@ struct KeyLockTaskEngine: TaskEngine {
         let configuredTargetCount = config?.targetCount ?? 10
         var events: [RunEvent] = []
 
-        let slotDetections = inputs.taskDetections.filter { $0.label == "slot" }
         let inWindows = inputs.taskDetections.filter { $0.label == "in" }
-        let slotRects = (!slotDetections.isEmpty ? slotDetections : inWindows)
+        // KeyLockV2 slot discovery must treat both "slot" and "in" as slot candidates.
+        // Using both avoids falling back when one label is partially missing per frame.
+        let slotRects = inputs.taskDetections
+            .filter { $0.label == "slot" || $0.label == "in" }
             .map(\.boundingBox)
         var slotMap = assignSlotIDs(slotRects: slotRects)
 
