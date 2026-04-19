@@ -5,7 +5,7 @@
 
 ---
 
-## Last Updated: 2026-04-18
+## Last Updated: 2026-04-19
 
 ---
 
@@ -17,19 +17,18 @@
 ### Commit Log
 
 ```
+927b136  Fix: on-demand task model loading, keep camera alive, correct worker-per-task binding
+0ecdf3f  Fix: instrument model reload, preview inference, NaN overlays, haptics, background audio
+177ddeb  Docs: update SESSION_AUDIT.md for Phase 6+7+8 + fix commits
+902be39  Phase 6+7+8: AudioService 3-player, EnrichedRunPayload, ThermalMonitor
+7ae15de  Fix: camera orientation, bounding box coords, model prefetch, haptic feedback
+444340b  Merge phase-5: task engines, Phase 4 screens, debug logging
+778f377  Phase 5: all 4 task engines + AudioService callout support
 [phase-4 head]  Phase 4: Results, Analysis, Leaderboards, Reports, UserManagement
 3da5108  Phase 3: TaskRunner full overhaul — HUD, TrainerControlsPanel, landscape layout
-309e314  gitignore: exclude videos, sounds, and mlpackages from tracking
-e9272ae  Phase 2.2+2.3: Hub redesign + TaskPicker card grid with Liquid Glass
-4ffbc36  Phase 2.1: UserChooserView — landscape split trainee management screen
-1cadb1e  Session audit: complete Phase 1.3+1.4 status, point to Phase 2.1 next
-7e37235  Phase 1.3+1.4: BLE mock provider + disconnect policy
-302d582  Phase 1.2+1.5+1.6: Design system, coordinate fix, overlay colors
-ac181e8  Phase 0+1.1: CLAUDE.md/AGENTS.md/.clinerules + full @Observable migration
-8b429a1  Initial commit (project skeleton)
 ```
 
-**Current build:** ✅ 0 errors (iOS Simulator, 2026-04-18)
+**Current build:** ✅ 0 errors (iOS Simulator, 2026-04-19)
 
 ---
 
@@ -53,6 +52,8 @@ ac181e8  Phase 0+1.1: CLAUDE.md/AGENTS.md/.clinerules + full @Observable migrati
 | 5.x | In-app log viewer + fileInfo wrapper for DEBUG file logging | phase-5 head |
 | fix | Camera orientation (dynamic landscapeLeft/Right rotation), bounding box coord fix for debug video, model prefetch on card appear, haptic feedback | 7ae15de |
 | 6+7+8 | AudioService 3-player (background music), EnrichedRunPayload (RunPayload Codable), ThermalMonitor (throttle/pause inference on thermal pressure) | 902be39 |
+| fix-A | Instrument model reload × 4 fix, preview inference before Start, NaN overlay guards, Hub camera restart, haptics generators, background audio .wav fix | 0ecdf3f |
+| fix-B | On-demand task model loading (1 model at a time), camera session kept alive (no stop/restart), wrong-model bug (stopWorkers in prepare), remove eager prefetch | 927b136 |
 
 ### Key Files Created/Modified in Phase 4
 
@@ -111,10 +112,22 @@ All 4 task engines implemented + AudioService expanded + RunnerCoordinator wired
 - **AudioService 3-player:** background looping music (startBackground/pause/resume/stop wired to RunnerCoordinator lifecycle)
 - **EnrichedRunPayload:** `RunPayload` Codable struct replaces `[String: String]`; events log, thermal state, accuracy all captured
 - **ThermalMonitor:** `@Observable @MainActor` class — `.serious` halves tick rate, `.critical` skips inference entirely; shown in debug panel
-- **Camera orientation:** `CameraService` observes `UIDevice.orientationDidChangeNotification`; dynamic rotation for both preview layer and output connection; inference EXIF orientation updated per-frame
-- **Bounding box fix:** `PreviewCoordinate.viewSize` fed via `onGeometryChange`; debug-video fallback now scales to view pixels
-- **Model prefetch:** `AppModel.prefetchModels()` called from `TaskCard.task` — models warm as cards appear
-- **Haptic feedback:** `UIImpactFeedbackGenerator` on mode-pill tap, Start, Pause, Resume, Results
+
+### ✅ Fix-A — Bug fixes from device log (2026-04-19)
+
+- **Instrument model loaded ×4:** `prepareForTask()` now loads task model and instrument model independently — instrument loaded once, reused across tasks
+- **Preview inference:** `beginPreviewInference()` starts workers in idle phase so bounding boxes show before Start; workers reused by `start()` 
+- **NaN overlay faults:** `DebugDetectionOverlay` and `boxOverlay` guard `width>1 && isFinite` before `.frame()` — eliminates mass "Invalid frame dimension" SwiftUI faults
+- **Hub camera restart:** `HubView.onAppear` calls `refreshPreviewSource()` for reliable restart on navigation pop
+- **Haptic feedback:** stored `UIImpactFeedbackGenerator` instances as `@State`, `prepare()` called on task appear
+- **Background music:** `.mp3` extension corrected to `.wav` for background tracks
+
+### ✅ Fix-B — Model lifecycle + camera session (2026-04-19)
+
+- **On-demand task model loading:** instrument model loaded once at `bootstrap()`; task model loaded in `prepare()` and released in `finish()` — only 1 task model in memory at a time
+- **Camera session kept alive:** `stopFrameSources()` calls `stopPublishing()` (disconnect from frameBus) instead of `stopSession()`; camera preview layer stays live in Hub with no restart delay
+- **Wrong-model bug:** `prepare()` now calls `stopWorkers()` to clear workers bound to the previous task; `beginPreviewInference()` always creates fresh workers for the new task model
+- **Remove eager prefetch:** `TaskCard.task` prefetch removed; `AppModel.prefetchModels()` removed
 
 ### Phase 9 — Curriculum + CustomTaskConfig ← NEXT
 

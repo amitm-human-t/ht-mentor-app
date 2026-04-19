@@ -191,12 +191,12 @@ PhaseAnimator([false, true], trigger: targetID) { pulsed in
 | Hub | root | ✅ done (redesigned) |
 | TaskPicker | `.taskPicker` | ✅ done (card grid) |
 | TaskRunner | `.taskRunner(task)` | ✅ done (landscape + HUD + panel) |
-| Results | `.results(summary)` | ❌ Phase 4 |
-| Analysis | `.analysis(id)` | ❌ Phase 4 |
-| Leaderboards | `.leaderboards` | ❌ Phase 4 |
-| Reports | `.reports` | ❌ Phase 4 |
+| Results | `.results(summary)` | ✅ Phase 4 |
+| Analysis | `.analysis(id)` | ✅ Phase 4 |
+| Leaderboards | `.leaderboards` | ✅ Phase 4 |
+| Reports | `.reports` | ✅ Phase 4 |
 | Curriculum + Run | `.curriculum` / `.curriculumRun` | ❌ Phase 9 |
-| UserManagement | `.userManagement` | ❌ Phase 4 |
+| UserManagement | `.userManagement` | ✅ Phase 4 |
 | CustomTaskConfig | `.customTaskConfig` | ❌ Phase 9 |
 
 **Flow:** App launch → UserChooser (select/create trainee) → Hub → TaskPicker → TaskRunner → Results → [Analysis / Leaderboards]
@@ -208,10 +208,10 @@ PhaseAnimator([false, true], trigger: targetID) { pulsed in
 | Engine | File | Status |
 |--------|------|--------|
 | KeyLock | `Core/Tasks/KeyLockTaskEngine.swift` | ✅ implemented |
-| TipPositioning | `Core/Tasks/TipPositioningTaskEngine.swift` | ❌ PlaceholderTaskEngine |
-| RubberBand | `Core/Tasks/RubberBandTaskEngine.swift` | ❌ PlaceholderTaskEngine |
-| SpringsSuturing | `Core/Tasks/SpringsSuturingTaskEngine.swift` | ❌ PlaceholderTaskEngine |
-| ManualScoring | `Core/Tasks/ManualScoringEngine.swift` | ❌ PlaceholderTaskEngine |
+| TipPositioning | `Core/Tasks/TipPositioningTaskEngine.swift` | ✅ implemented |
+| RubberBand | `Core/Tasks/RubberBandTaskEngine.swift` | ✅ implemented |
+| SpringsSuturing | `Core/Tasks/SpringsSuturingTaskEngine.swift` | ✅ implemented |
+| ManualScoring | `Core/Tasks/ManualScoringEngine.swift` | ✅ implemented |
 
 CoreML models bundled: `keylock`, `tippos`, `rubberband`, `springs`, `instrument` (all `.mlpackage`)
 
@@ -409,7 +409,7 @@ This is required for any machine/agent that clones the repo fresh.
 >
 > **`SESSION_AUDIT.md`** (project root) — updated after every commit.
 
-**Quick status:** Phases 0–3 complete. Phase 4 (Results/Analysis/Leaderboards/Reports) is next.
+**Quick status:** Phases 0–8 complete + device bug fixes (model lifecycle, camera session, overlay NaN). Phase 9 (Curriculum + CustomTaskConfig) is next. See SESSION_AUDIT.md for full detail.
 
 ### Design Token Quick Reference
 
@@ -454,53 +454,52 @@ instrument training app (SwiftUI, iOS 26, CoreML YOLO, BLE).
 
 Working directory:  /Users/amitm/tk_models/ipad app/p2 app/p2 app/p2 app/
 Git repo:           /Users/amitm/tk_models/ipad app/p2 app/p2 app/
-Branch:             claude-branch  (build clean 0 errors)
+Branch:             main  (build clean 0 errors, 2026-04-19)
 Master context:     /Users/amitm/tk_models/ipad app/p2 app/p2 app/CLAUDE.md  ← READ THIS FIRST
 Session state:      /Users/amitm/tk_models/ipad app/p2 app/p2 app/SESSION_AUDIT.md  ← what's done/pending
 Skills reference:   /Users/amitm/tk_models/ipad app/p2 app/p2 app/.cline/skills/  ← per-domain cheat sheets
 Full plan:          /Users/amitm/.claude/plans/staged-inventing-kite.md
 Memory files:       /Users/amitm/.claude/projects/-Users-amitm-tk-models-ipad-app-p2-app-p2-app-p2-app/memory/
 
-COMPLETED (do not redo): Phases 0, 1.1–1.6, 2.1, 2.2, 2.3, 3
-  See SESSION_AUDIT.md for full commit log and file list.
+COMPLETED (do not redo): Phases 0–8 + bug fix passes Fix-A and Fix-B.
+  See SESSION_AUDIT.md for full commit log and architecture decisions.
 
-START HERE — Phase 4 (Results, Analysis, Leaderboards, Reports, UserManagement):
-  Skills: ios-ai-ml-skills:swiftui-animation, ios-ai-ml-skills:swift-charts,
-          ios-ai-ml-skills:swiftdata, ios-ai-ml-skills:swiftui-liquid-glass
+KEY ARCHITECTURE DECISIONS FROM FIX-B (respect these):
+  - Camera session stays running for the entire app lifetime.
+    stopFrameSources() calls cameraService.stopPublishing() NOT stopSession().
+    Only refreshPreviewSource() with previewVisible=false calls stopSession().
+  - Task models: loaded on-demand in RunnerCoordinator.prepare(), released in finish().
+    Instrument model: loaded once in AppModel.bootstrap(), never released.
+    No prefetch in TaskPickerView.
+  - prepare() calls stopWorkers() to clear workers from previous task BEFORE creating
+    new workers in beginPreviewInference(). This ensures correct model per task.
 
-  4.1 Features/Results/ResultsView.swift
-      — Score hero counting from 0 (.contentTransition .numericText)
-      — Duration / accuracy / targets in glass cards
-      — Three CTAs: Retry | Analyze | Back to Hub
-      — .navigationTransition(.zoom) entry
+START HERE — Phase 9 (Curriculum + CustomTaskConfig):
+  Skills: ios-ai-ml-skills:swiftui-animation, ios-ai-ml-skills:swiftdata,
+          ios-ai-ml-skills:swiftui-liquid-glass, ios-ai-ml-skills:swiftui-navigation
 
-  4.2 Features/Analysis/AnalysisView.swift
-      — 4 tabs: Overview (sparkline chart), Task-specific, HandX, Notes (TextEditor)
-      — @Query on RunSummaryRecord filtered by user + task
+  9.1 Features/Curriculum/CurriculumView.swift
+      — Browse curriculum programs (structured sequences of tasks)
+      — @Query on CurriculumRecord
+      — Card grid matching TaskPicker style
 
-  4.3 Features/Leaderboards/LeaderboardsView.swift
-      — @Query with task+mode filter pills
-      — Podium top-3, LazyVStack rows below
-      — ContentUnavailableView for empty state
+  9.2 Features/Curriculum/CurriculumRunView.swift
+      — Run tasks in sequence; auto-advance on finish
+      — Progress indicator: "Task 2 of 5"
+      — Same landscape layout as TaskRunnerView
 
-  4.4 Features/Reports/ReportsView.swift
-      — Date range + task + user filters
-      — Summary cards + bar chart (per-task session counts)
+  9.3 Features/CustomTaskConfig/CustomTaskConfigView.swift
+      — Adjust targetCount, time limit, mode for a custom run
+      — Form sheet over TaskPicker
 
-  4.5 Features/UserManagement/UserManagementView.swift
-      — Landscape split (same pattern as UserChooserView)
-      — Swipe-to-delete + inline edit
-
-  Wire all new routes in ContentView.swift after building each view.
-
-THEN Phase 5 (task engines), Phase 6+7+8 (audio, enriched payload, perf).
+  Wire .curriculum, .curriculumRun, .customTaskConfig routes in ContentView + AppModel.
 
 RULES:
   - After each phase: xcodebuild (command in SESSION_AUDIT.md)
   - Commit each phase separately with Co-Authored-By line
-  - Update SESSION_AUDIT.md after each commit (not CLAUDE.md — that stays stable)
-  - Sync CLAUDE.md → .clinerules + AGENTS.md only when CLAUDE.md changes
-  - Always refresh NEXT AGENT PROMPT at end of CLAUDE.md
+  - Update SESSION_AUDIT.md after each commit; update CLAUDE.md + sync to
+    .clinerules + AGENTS.md when architecture or rules change
   - Design system is live: Color.hxCyan, Font.hxHeadline, .glassCard(), etc.
   - North star: NOT an engineer's app — every screen must be premium/clinical
+  - manual_logs.txt: only read if changed since last commit (git status check first)
 ```
