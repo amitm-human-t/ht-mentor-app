@@ -10,6 +10,7 @@ struct TaskRunnerView: View {
     @State private var selectedMode: TaskMode = .guided
     @State private var isControlPanelVisible = true
     @State private var runResultsShown = false
+    @State private var showExitConfirmation = false
     @State private var mediumFeedback = UIImpactFeedbackGenerator(style: .medium)
     @State private var lightFeedback = UIImpactFeedbackGenerator(style: .light)
     @Environment(\.dismiss) private var dismiss
@@ -81,6 +82,18 @@ struct TaskRunnerView: View {
                 .animation(.hxModal, value: countdown)
             }
         }
+        .confirmationDialog(
+            "End task and return to Hub?",
+            isPresented: $showExitConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("End Task", role: .destructive) {
+                endTaskAndReturnToHub()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This will end the current task and release task resources.")
+        }
     }
 
     // MARK: - Camera Area
@@ -122,7 +135,7 @@ struct TaskRunnerView: View {
             // Back button — only when not actively running
             if phase == .idle || phase == .finished || phase == .error {
                 Button {
-                    dismiss()
+                    showExitConfirmation = true
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "chevron.left")
@@ -229,5 +242,14 @@ struct TaskRunnerView: View {
         .padding(.horizontal, HXSpacing.xl)
         .padding(.vertical, HXSpacing.md)
         .background(.ultraThinMaterial)
+    }
+
+    private func endTaskAndReturnToHub() {
+        runnerCoordinator.finish()
+        Task {
+            await runnerCoordinator.switchInputSource(to: .liveCamera)
+            appModel.refreshPreviewSource()
+            dismiss()
+        }
     }
 }

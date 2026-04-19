@@ -30,6 +30,49 @@ enum UserDefaultsStore {
         set { defaults.set(newValue, forKey: "hx_confidenceThreshold") }
     }
 
+    /// NMS IoU threshold (0.0–1.0). Default 0.45.
+    static var iouThreshold: Float {
+        get {
+            let v = defaults.float(forKey: "hx_iouThreshold")
+            return v == 0 ? 0.45 : v
+        }
+        set { defaults.set(newValue, forKey: "hx_iouThreshold") }
+    }
+
+    /// KeyLockV2 overlap gate ("red %") as a fraction 0.0–1.0. Default 0.18.
+    static var keyLockSlotOverlapThreshold: Float {
+        get {
+            let v = defaults.float(forKey: "hx_keylock_overlapThreshold")
+            return v == 0 ? 0.18 : v
+        }
+        set { defaults.set(newValue, forKey: "hx_keylock_overlapThreshold") }
+    }
+
+    /// KeyLockV2 hold duration in seconds. Default 1.0s.
+    static var keyLockHoldDurationSeconds: Float {
+        get {
+            let v = defaults.float(forKey: "hx_keylock_holdSeconds")
+            return v == 0 ? 1.0 : v
+        }
+        set { defaults.set(newValue, forKey: "hx_keylock_holdSeconds") }
+    }
+
+    /// KeyLockV2 confidence gate (0.0–1.0). Default 0.75.
+    static var keyLockAcceptanceConfidence: Float {
+        get {
+            let v = defaults.float(forKey: "hx_keylock_acceptanceConfidence")
+            return v == 0 ? 0.75 : v
+        }
+        set { defaults.set(newValue, forKey: "hx_keylock_acceptanceConfidence") }
+    }
+
+    /// Slot-ordering orientation switch for debugging coordinate transforms.
+    /// false => sort top-to-bottom (default), true => bottom-to-top.
+    static var keyLockInvertYOrdering: Bool {
+        get { defaults.bool(forKey: "hx_keylock_invertYOrdering") }
+        set { defaults.set(newValue, forKey: "hx_keylock_invertYOrdering") }
+    }
+
     /// Default input source (rawValue of RunnerCoordinator.InputSource).
     static var defaultInputSource: String? {
         get { defaults.string(forKey: "hx_defaultInputSource") }

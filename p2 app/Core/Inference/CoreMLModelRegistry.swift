@@ -175,6 +175,8 @@ actor CoreMLModelRegistry {
         observations: [VNObservation],
         classLabels: [Int: String]
     ) -> [TaskDetection] {
+        let confidenceThreshold = UserDefaultsStore.confidenceThreshold
+        let iouThreshold = UserDefaultsStore.iouThreshold
         let featureObservations = observations.compactMap { $0 as? VNCoreMLFeatureValueObservation }
         guard let multiArray = featureObservations.compactMap(\.featureValue.multiArrayValue).first else {
             return []
@@ -200,7 +202,7 @@ actor CoreMLModelRegistry {
             let confidence = Float(truncating: multiArray[[0, row as NSNumber, 4]])
             let classIndex = Int(truncating: multiArray[[0, row as NSNumber, 5]])
 
-            guard confidence > 0.20 else { continue }
+            guard confidence >= confidenceThreshold else { continue }
 
             let normalizedRect = normalizeRect(x1: x1, y1: y1, x2: x2, y2: y2)
             let label = classLabels[classIndex] ?? "class_\(classIndex)"
@@ -212,7 +214,43 @@ actor CoreMLModelRegistry {
             AppLogger.inference.debug("Model produced \(rowCount) candidate rows but none passed the confidence threshold")
         }
 
-        return detections
+        return applyNMS(detections: detections, iouThreshold: iouThreshold)
+    }
+
+    /// Label-wise non-maximum suppression to reduce duplicate boxes while keeping
+    /// cross-class overlaps visible for debugging/algorithms.
+    private func applyNMS(detections: [TaskDetection], iouThreshold: Float) -> [TaskDetection] {
+        guard !detections.isEmpty else { return detections }
+        let threshold = CGFloat(max(0, min(1, iouThreshold)))
+        var kept: [TaskDetection] = []
+
+        let byLabel = Dictionary(grouping: detections, by: \.label)
+        for (_, group) in byLabel {
+            let sorted = group.sorted { $0.confidence > $1.confidence }
+            var accepted: [TaskDetection] = []
+
+            for candidate in sorted {
+                let overlapsAccepted = accepted.contains {
+                    iou(candidate.boundingBox, $0.boundingBox) > threshold
+                }
+                if !overlapsAccepted {
+                    accepted.append(candidate)
+                }
+            }
+
+            kept.append(contentsOf: accepted)
+        }
+
+        return kept.sorted { $0.confidence > $1.confidence }
+    }
+
+    private func iou(_ a: CGRect, _ b: CGRect) -> CGFloat {
+        let intersection = a.intersection(b)
+        guard !intersection.isNull else { return 0 }
+        let intersectionArea = intersection.width * intersection.height
+        let unionArea = (a.width * a.height) + (b.width * b.height) - intersectionArea
+        guard unionArea > 0 else { return 0 }
+        return intersectionArea / unionArea
     }
 
     private func normalizeRect(x1: CGFloat, y1: CGFloat, x2: CGFloat, y2: CGFloat) -> CGRect {

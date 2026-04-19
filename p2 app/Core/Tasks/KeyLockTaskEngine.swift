@@ -40,10 +40,6 @@ struct KeyLockTaskEngine: TaskEngine {
     private let rightExcluded: Set<Int> = [2, 5, 6]
     private let leftExcluded: Set<Int> = [9, 11, 12]
 
-    private let slotOverlapThreshold: CGFloat = 0.18
-    private let holdDurationSeconds: TimeInterval = 1.0
-    private let acceptanceConfidence: Float = 0.75
-
     mutating func start() {}
     mutating func pause() {}
 
@@ -66,15 +62,19 @@ struct KeyLockTaskEngine: TaskEngine {
         let configuredTargetCount = config?.targetCount ?? 10
         var events: [RunEvent] = []
 
-        let slotRects = inputs.taskDetections
-            .filter { $0.label == "slot" || $0.label == "in" }
+        let slotDetections = inputs.taskDetections.filter { $0.label == "slot" }
+        let inWindows = inputs.taskDetections.filter { $0.label == "in" }
+        let slotRects = (!slotDetections.isEmpty ? slotDetections : inWindows)
             .map(\.boundingBox)
         let slotMap = assignSlotIDs(slotRects: slotRects)
+
+        let slotOverlapThreshold = CGFloat(UserDefaultsStore.keyLockSlotOverlapThreshold)
+        let holdDurationSeconds = TimeInterval(UserDefaultsStore.keyLockHoldDurationSeconds)
+        let acceptanceConfidence = UserDefaultsStore.keyLockAcceptanceConfidence
 
         let key1Detection = bestDetection(label: "key1", from: inputs.taskDetections)
             ?? bestDetection(label: "key", from: inputs.taskDetections)
         let key2Detection = bestDetection(label: "key2", from: inputs.taskDetections)
-        let inWindows = inputs.taskDetections.filter { $0.label == "in" }
 
         for action in inputs.trainerActions where !processedActionTimestamps.contains(action.timestamp) {
             processedActionTimestamps.insert(action.timestamp)
@@ -247,7 +247,8 @@ struct KeyLockTaskEngine: TaskEngine {
     private func assignSlotIDs(slotRects: [CGRect]) -> [Int: CGRect] {
         let sorted = slotRects.sorted { lhs, rhs in
             if abs(lhs.midY - rhs.midY) > 0.03 {
-                return lhs.midY > rhs.midY
+                let invertY = UserDefaultsStore.keyLockInvertYOrdering
+                return invertY ? (lhs.midY < rhs.midY) : (lhs.midY > rhs.midY)
             }
             return lhs.midX < rhs.midX
         }

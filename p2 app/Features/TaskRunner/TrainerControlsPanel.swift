@@ -207,6 +207,23 @@ struct TrainerControlsPanel: View {
                     }
                     .pickerStyle(.menu)
                     .tint(Color.hxCyan)
+                } else {
+                    Toggle(isOn: torchBinding) {
+                        HStack(spacing: 6) {
+                            Image(systemName: appModel.cameraService.torchEnabled ? "flashlight.on.fill" : "flashlight.off.fill")
+                                .foregroundStyle(appModel.cameraService.torchEnabled ? Color.hxAmber : .white.opacity(0.65))
+                            Text("Torch")
+                                .font(.hxCaption)
+                        }
+                    }
+                    .tint(Color.hxAmber)
+                    .disabled(!appModel.cameraService.torchAvailable)
+
+                    if !appModel.cameraService.torchAvailable {
+                        Text("Torch unavailable on this device/input")
+                            .font(.hxCaption)
+                            .foregroundStyle(.white.opacity(0.45))
+                    }
                 }
             }
         }
@@ -247,6 +264,10 @@ struct TrainerControlsPanel: View {
                 }
                 #if DEBUG
                 Divider().background(Color.hxSurfaceBorder)
+                Text("YOLO Debug")
+                    .font(.hxCaption)
+                    .foregroundStyle(.white.opacity(0.60))
+
                 Toggle(isOn: Binding(
                     get: { coordinator.debugBoundingBoxesVisible },
                     set: { _ in coordinator.toggleDebugBoundingBoxes() }
@@ -264,6 +285,24 @@ struct TrainerControlsPanel: View {
                     dataRow("Instr. Tip", value: coordinator.debugInstrumentTip != nil ? "Detected" : "None")
                 }
 
+                thresholdSliderRow(
+                    label: "Conf",
+                    value: Double(UserDefaultsStore.confidenceThreshold),
+                    range: 0.05...0.95,
+                    valueText: "\(Int(UserDefaultsStore.confidenceThreshold * 100))%"
+                ) { newValue in
+                    UserDefaultsStore.confidenceThreshold = Float(newValue)
+                }
+
+                thresholdSliderRow(
+                    label: "IoU",
+                    value: Double(UserDefaultsStore.iouThreshold),
+                    range: 0.05...0.95,
+                    valueText: String(format: "%.2f", UserDefaultsStore.iouThreshold)
+                ) { newValue in
+                    UserDefaultsStore.iouThreshold = Float(newValue)
+                }
+
                 Toggle(isOn: Binding(
                     get: { coordinator.debugImageProcessingVisible },
                     set: { _ in coordinator.toggleDebugImageProcessing() }
@@ -278,6 +317,49 @@ struct TrainerControlsPanel: View {
                 .tint(Color.hxCyan)
                 if coordinator.debugImageProcessingVisible {
                     dataRow("Algo Elements", value: "\(coordinator.debugImageProcessingPayload.elements.count)")
+                }
+
+                if taskDefinition.id == .keyLock {
+                    Divider().background(Color.hxSurfaceBorder)
+                    Text("Algorithm Debug · KeyLockV2")
+                        .font(.hxCaption)
+                        .foregroundStyle(.white.opacity(0.60))
+
+                    thresholdSliderRow(
+                        label: "Red %",
+                        value: Double(UserDefaultsStore.keyLockSlotOverlapThreshold),
+                        range: 0.05...0.90,
+                        valueText: "\(Int(UserDefaultsStore.keyLockSlotOverlapThreshold * 100))%"
+                    ) { newValue in
+                        UserDefaultsStore.keyLockSlotOverlapThreshold = Float(newValue)
+                    }
+
+                    thresholdSliderRow(
+                        label: "Hold",
+                        value: Double(UserDefaultsStore.keyLockHoldDurationSeconds),
+                        range: 0.10...2.50,
+                        valueText: String(format: "%.2fs", UserDefaultsStore.keyLockHoldDurationSeconds)
+                    ) { newValue in
+                        UserDefaultsStore.keyLockHoldDurationSeconds = Float(newValue)
+                    }
+
+                    thresholdSliderRow(
+                        label: "Gate Conf",
+                        value: Double(UserDefaultsStore.keyLockAcceptanceConfidence),
+                        range: 0.05...0.95,
+                        valueText: "\(Int(UserDefaultsStore.keyLockAcceptanceConfidence * 100))%"
+                    ) { newValue in
+                        UserDefaultsStore.keyLockAcceptanceConfidence = Float(newValue)
+                    }
+
+                    Toggle(isOn: Binding(
+                        get: { UserDefaultsStore.keyLockInvertYOrdering },
+                        set: { UserDefaultsStore.keyLockInvertYOrdering = $0 }
+                    )) {
+                        Text("Invert Y Slot Ordering")
+                            .font(.hxCaption)
+                    }
+                    .tint(Color.hxAmber)
                 }
                 #endif
             }
@@ -310,6 +392,27 @@ struct TrainerControlsPanel: View {
         }
     }
 
+    @ViewBuilder
+    private func thresholdSliderRow(
+        label: String,
+        value: Double,
+        range: ClosedRange<Double>,
+        valueText: String,
+        onChange: @escaping (Double) -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            dataRow(label, value: valueText)
+            Slider(
+                value: Binding(
+                    get: { value },
+                    set: { onChange($0) }
+                ),
+                in: range
+            )
+            .tint(Color.hxCyan)
+        }
+    }
+
     private var inputSourceBinding: Binding<RunnerCoordinator.InputSource> {
         Binding(
             get: { coordinator.inputSource },
@@ -325,6 +428,15 @@ struct TrainerControlsPanel: View {
             set: { url in
                 guard let url else { return }
                 appModel.debugVideoFrameSource.selectVideo(url: url)
+            }
+        )
+    }
+
+    private var torchBinding: Binding<Bool> {
+        Binding(
+            get: { appModel.cameraService.torchEnabled },
+            set: { isOn in
+                appModel.cameraService.setTorchEnabled(isOn)
             }
         )
     }

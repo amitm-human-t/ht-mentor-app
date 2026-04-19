@@ -17,6 +17,8 @@ final class CameraService: NSObject {
 
     private(set) var authorizationStatus: AVAuthorizationStatus = AVCaptureDevice.authorizationStatus(for: .video)
     private(set) var sessionState: SessionState = .idle
+    private(set) var torchAvailable = false
+    private(set) var torchEnabled = false
 
     nonisolated(unsafe) let session = AVCaptureSession()
 
@@ -113,6 +115,7 @@ final class CameraService: NSObject {
 
     func stopSession() {
         guard sessionState != .idle else { return }
+        setTorchEnabled(false)
         AppLogger.runtime.info("Stopping live camera session")
         sessionQueue.async { [session] in
             if session.isRunning {
@@ -155,6 +158,11 @@ final class CameraService: NSObject {
                         }
 
                         let input = try AVCaptureDeviceInput(device: camera)
+                        let hasTorch = camera.hasTorch
+                        Task { @MainActor [weak self] in
+                            self?.torchAvailable = hasTorch
+                            if !hasTorch { self?.torchEnabled = false }
+                        }
                         if session.inputs.isEmpty, session.canAddInput(input) {
                             session.addInput(input)
                         }
@@ -201,6 +209,54 @@ final class CameraService: NSObject {
     nonisolated private static func preferredBackCamera() -> AVCaptureDevice? {
         AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
         ?? AVCaptureDevice.default(.builtInLiDARDepthCamera, for: .video, position: .back)
+    }
+
+    /// Enables/disables rear camera torch when available.
+    func setTorchEnabled(_ enabled: Bool) {
+        sessionQueue.async { [weak self] in
+            guard let self else { return }
+            guard let input = self.session.inputs.first as? AVCaptureDeviceInput else {
+                Task { @MainActor in
+                    self.torchAvailable = false
+                    self.torchEnabled = false
+                }
+                return
+            }
+
+            let device = input.device
+            guard device.hasTorch else {
+                Task { @MainActor in
+                    self.torchAvailable = false
+                    self.torchEnabled = false
+                }
+                return
+            }
+
+            do {
+                try device.lockForConfiguration()
+                defer { device.unlockForConfiguration() }
+
+                if enabled {
+                    if device.isTorchModeSupported(.on) {
+                        try device.setTorchModeOn(level: AVCaptureDevice.maxAvailableTorchLevel)
+                    }
+                } else if device.isTorchModeSupported(.off) {
+                    device.torchMode = .off
+                }
+
+                let isOn = device.torchMode == .on
+                Task { @MainActor in
+                    self.torchAvailable = true
+                    self.torchEnabled = isOn
+                }
+            } catch {
+                Task { @MainActor in
+                    self.torchAvailable = device.hasTorch
+                    self.torchEnabled = false
+                }
+                AppLogger.runtime.error("Torch update failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
     }
 }
 
