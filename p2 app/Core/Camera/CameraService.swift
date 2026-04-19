@@ -122,6 +122,14 @@ final class CameraService: NSObject {
         sessionState = .idle
     }
 
+    /// Disconnects the camera from the frame bus without stopping the capture session.
+    /// The preview layer continues to show live video; frames stop being published for inference.
+    /// Call startSession(frameBus:) to reconnect.
+    func stopPublishing() {
+        sampleBufferDelegate.frameBus = nil
+        frameBus = nil
+    }
+
     private func configureIfNeeded() async throws {
         guard !configured else { return }
         if let configurationTask {

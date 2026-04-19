@@ -58,6 +58,11 @@ final class AppModel {
             assetCatalog: AssetCatalog.production
         )
         deviceSupport = DeviceSupportSnapshot.current()
+        // Preload instrument model once at startup — shared by all tasks.
+        let registry = modelRegistry
+        Task(priority: .background) {
+            try? await registry.prepareInstrumentModel()
+        }
     }
 
     func openTaskPicker() {
@@ -115,12 +120,8 @@ final class AppModel {
         path.append(.userManagement)
     }
 
-    func prefetchModels(for taskID: TaskIdentifier) {
-        let registry = modelRegistry
-        Task(priority: .background) {
-            try? await registry.prepareForTask(taskID)
-        }
-    }
+    // Task models are loaded on-demand in RunnerCoordinator.prepare() and released
+    // after each run ends. No eager prefetch — instrument model is loaded in bootstrap().
 
     func startTask(_ task: TaskDefinition) {
         guard canStartTasks else {
@@ -195,8 +196,10 @@ final class AppModel {
                 }
             }
         case .debugVideo:
+            // Disconnect camera from frame bus (preview layer keeps showing live video);
+            // debug video frames will feed the bus instead.
+            cameraService.stopPublishing()
             debugVideoFrameSource.selectPreferredVideo(for: currentTaskIdentifier)
-            cameraService.stopSession()
         }
     }
 }

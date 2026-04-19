@@ -116,6 +116,9 @@ final class RunnerCoordinator {
     func prepare(task: TaskDefinition, mode: TaskMode) {
         previewLoopTask?.cancel()
         previewLoopTask = nil
+        // Stop any workers from a previous task so beginPreviewInference() creates
+        // fresh workers bound to the new task model.
+        stopWorkers()
         activeTask = task
         selectedMode = mode
         taskEngine = engine(for: task.id)
@@ -172,7 +175,8 @@ final class RunnerCoordinator {
         await modelPreloadTask?.value
         guard modelLoadError == nil, let activeTask else { return }
 
-        // Ensure the frame source is feeding the bus (no-op if already running).
+        // Reconnect frame source to the bus (camera may have been disconnected by a previous
+        // finish(); debug video source may need to be started).
         do { try await startFrameSource() } catch { return }
 
         // Create workers if they haven't been created yet for this prepare cycle.
@@ -329,6 +333,11 @@ final class RunnerCoordinator {
         stopFrameSources()
         stopWorkers()
         audioService?.stopBackground()
+        // Release the task model from memory — it will be reloaded next time this task runs.
+        if let taskID = activeTask?.id {
+            let registry = modelRegistry
+            Task(priority: .background) { await registry.releaseTaskModel(for: taskID) }
+        }
         stateMachine.finish()
         AppLogger.runtime.fileInfo("Runner finished", category: "runtime")
         #if DEBUG
@@ -349,7 +358,7 @@ final class RunnerCoordinator {
         let wasRunning = stateMachine.phase == .running
         if wasRunning { runLoopTask?.cancel() }
 
-        cameraService.stopSession()
+        cameraService.stopPublishing()
         debugVideoFrameSource.stop()
 
         inputSource = newSource
@@ -527,7 +536,9 @@ final class RunnerCoordinator {
     }
 
     private func stopFrameSources() {
-        cameraService.stopSession()
+        // Disconnect camera from the frame bus but keep the session running so the
+        // preview layer in Hub/TaskPicker stays live with no restart delay.
+        cameraService.stopPublishing()
         debugVideoFrameSource.stop()
     }
 

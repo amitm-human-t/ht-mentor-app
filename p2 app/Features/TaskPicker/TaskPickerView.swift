@@ -124,9 +124,6 @@ private struct TaskCard: View {
         .padding(HXSpacing.xl)
         .frame(maxWidth: .infinity, alignment: .leading)
         .glassEffect(.regular.interactive(), in: .rect(cornerRadius: HXRadius.lg))
-        .task {
-            appModel.prefetchModels(for: task.id)
-        }
     }
 
     private var cardTopRow: some View {

@@ -18,24 +18,29 @@ actor CoreMLModelRegistry {
     private var taskModels: [TaskIdentifier: LoadedModel] = [:]
     private var instrumentModel: LoadedModel?
 
-    func prepareForTask(_ task: TaskIdentifier) async throws {
-        // Load task model only if not already loaded for this identifier.
-        if taskModels[task] == nil {
-            guard let taskAsset = modelAsset(for: task) else { return }
-            let taskModel = try loadModel(named: task.rawValue, asset: taskAsset, fallbackLabels: fallbackLabels(for: task))
-            taskModels[task] = taskModel
-            let taskOutputs = taskModel.outputNames.joined(separator: ",")
-            AppLogger.inference.info("Prepared task model \(task.rawValue, privacy: .public) outputs: \(taskOutputs, privacy: .public)")
-        }
+    /// Loads the instrument model once and keeps it for the app's lifetime.
+    /// Called at app startup so it's warm before the first task.
+    func prepareInstrumentModel() async throws {
+        guard instrumentModel == nil else { return }
+        let asset = BundledAsset(pathComponents: ["models", "instrument"], fileExtension: "mlpackage", kind: .model)
+        let model = try loadModel(named: "instrument", asset: asset, fallbackLabels: [0: "Tip", 1: "manual"])
+        instrumentModel = model
+        AppLogger.inference.info("Prepared instrument model outputs: \(model.outputNames.joined(separator: ","), privacy: .public)")
+    }
 
-        // Load instrument model only once — shared across all tasks.
-        if instrumentModel == nil {
-            let instrumentAsset = BundledAsset(pathComponents: ["models", "instrument"], fileExtension: "mlpackage", kind: .model)
-            let instrModel = try loadModel(named: "instrument", asset: instrumentAsset, fallbackLabels: [0: "Tip", 1: "manual"])
-            instrumentModel = instrModel
-            let instrumentOutputs = instrModel.outputNames.joined(separator: ",")
-            AppLogger.inference.info("Prepared instrument model outputs: \(instrumentOutputs, privacy: .public)")
-        }
+    /// Loads the task model on demand. Instrument model must be loaded first via prepareInstrumentModel().
+    func prepareForTask(_ task: TaskIdentifier) async throws {
+        guard taskModels[task] == nil else { return }
+        guard let taskAsset = modelAsset(for: task) else { return }
+        let taskModel = try loadModel(named: task.rawValue, asset: taskAsset, fallbackLabels: fallbackLabels(for: task))
+        taskModels[task] = taskModel
+        AppLogger.inference.info("Prepared task model \(task.rawValue, privacy: .public) outputs: \(taskModel.outputNames.joined(separator: ","), privacy: .public)")
+    }
+
+    /// Releases the task model from memory after a run ends.
+    func releaseTaskModel(for task: TaskIdentifier) {
+        taskModels[task] = nil
+        AppLogger.inference.info("Released task model \(task.rawValue, privacy: .public)")
     }
 
     func taskInference(
