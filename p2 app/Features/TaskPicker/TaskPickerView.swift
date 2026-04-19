@@ -150,7 +150,8 @@ private struct TaskCard: View {
             ForEach(visibleModes, id: \.self) { mode in
                 Button {
                     guard appModel.canStartTasks else { return }
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    // TEMP: disabled while investigating picker->runner transition latency.
+                    // UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     appModel.startTask(task, mode: mode)
                 } label: {
                     HStack(spacing: 5) {

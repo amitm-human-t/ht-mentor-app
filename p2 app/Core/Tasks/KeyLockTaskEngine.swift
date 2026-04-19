@@ -45,6 +45,7 @@ struct KeyLockTaskEngine: TaskEngine {
     private var key2Tracked: TrackedDetection?
     private var lastStableSlotMap: [Int: CGRect] = [:]
     private var lastStableSlotMapTimestamp: TimeInterval?
+    private var lockedSlotMap: [Int: CGRect]?
 
     private let rightExcluded: Set<Int> = [2, 5, 6]
     private let leftExcluded: Set<Int> = [9, 11, 12]
@@ -67,6 +68,7 @@ struct KeyLockTaskEngine: TaskEngine {
         key2Tracked = nil
         lastStableSlotMap = [:]
         lastStableSlotMapTimestamp = nil
+        lockedSlotMap = nil
     }
 
     mutating func configure(_ config: TaskConfig) {
@@ -81,19 +83,31 @@ struct KeyLockTaskEngine: TaskEngine {
         let inWindows = inputs.taskDetections.filter { $0.label == "in" }
         // KeyLockV2 slot discovery must treat both "slot" and "in" as slot candidates.
         // Using both avoids falling back when one label is partially missing per frame.
-        let rawSlotRects = inputs.taskDetections
-            .filter { $0.label == "slot" || $0.label == "in" }
-            .map(\.boundingBox)
-        let slotRects = deduplicateSlotRects(rawSlotRects)
-        var slotMap = assignSlotIDs(slotRects: slotRects)
+        let slotMap: [Int: CGRect]
+        if let lockedSlotMap {
+            slotMap = lockedSlotMap
+        } else {
+            let rawSlotRects = inputs.taskDetections
+                .filter { $0.label == "slot" || $0.label == "in" }
+                .map(\.boundingBox)
+            let slotRects = deduplicateSlotRects(rawSlotRects)
+            var discoveredSlotMap = assignSlotIDs(slotRects: slotRects)
 
-        if slotMap.count >= 10 {
-            lastStableSlotMap = slotMap
-            lastStableSlotMapTimestamp = inputs.elapsed
-        } else if let lastTs = lastStableSlotMapTimestamp,
-                  inputs.elapsed - lastTs <= slotMapPersistenceSeconds,
-                  !lastStableSlotMap.isEmpty {
-            slotMap = lastStableSlotMap
+            if discoveredSlotMap.count == 13 {
+                // Once a full board mapping is discovered, freeze it for the run.
+                self.lockedSlotMap = discoveredSlotMap
+            }
+
+            if discoveredSlotMap.count >= 10 {
+                lastStableSlotMap = discoveredSlotMap
+                lastStableSlotMapTimestamp = inputs.elapsed
+            } else if let lastTs = lastStableSlotMapTimestamp,
+                      inputs.elapsed - lastTs <= slotMapPersistenceSeconds,
+                      !lastStableSlotMap.isEmpty {
+                discoveredSlotMap = lastStableSlotMap
+            }
+
+            slotMap = self.lockedSlotMap ?? discoveredSlotMap
         }
 
         let slotOverlapThreshold = CGFloat(UserDefaultsStore.keyLockSlotOverlapThreshold)
@@ -162,15 +176,13 @@ struct KeyLockTaskEngine: TaskEngine {
             }
         }
 
-        let overlays = inputs.taskDetections.map { detection in
-            OverlayElement.box(detection.boundingBox, label: "\(detection.label) \(Int(detection.confidence * 100))%")
-        }
-
         var guidance: [OverlayElement] = []
         if let activeTarget = currentTarget(for: activeKey),
            let targetRect = slotMap[activeTarget] {
             let activeBox = (activeKey == .key1 ? key1Detection : key2Detection)?.boundingBox
+            let activeConfidence = (activeKey == .key1 ? key1Detection : key2Detection)?.confidence ?? 0
             if let activeBox {
+                guidance.append(.box(activeBox, label: "\(activeKey.rawValue) \(Int(activeConfidence * 100))%", color: .yellow))
                 guidance.append(.line(
                     CGPoint(x: activeBox.midX, y: activeBox.midY),
                     CGPoint(x: targetRect.midX, y: targetRect.midY),
@@ -211,7 +223,7 @@ struct KeyLockTaskEngine: TaskEngine {
             targetInfo: "K1 \(k1Done)/10 • K2 \(k2Done)/10 • Drops \(drops)",
             progress: ProgressSnapshot(completed: completedTargets, total: totalTargets),
             events: events,
-            overlayPayload: OverlayPayload(elements: overlays + guidance),
+            overlayPayload: OverlayPayload(elements: guidance),
             debugOverlayPayload: OverlayPayload(elements: debugElements)
         )
     }
