@@ -49,6 +49,12 @@ struct AppPreviewStageView: View {
                             coordinateConverter: previewCoordinate.convert
                         )
                     }
+                    if runnerCoordinator.debugKeyLockRedPatchVisible {
+                        PreviewOverlayView(
+                            payload: runnerCoordinator.debugKeyLockRedPatchPayload,
+                            coordinateConverter: previewCoordinate.convert
+                        )
+                    }
                     #endif
                 }
                 .overlay(alignment: .bottomLeading) {

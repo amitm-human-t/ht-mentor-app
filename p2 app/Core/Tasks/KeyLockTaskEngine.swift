@@ -177,12 +177,23 @@ struct KeyLockTaskEngine: TaskEngine {
         }
 
         var guidance: [OverlayElement] = []
+        var debugElements: [OverlayElement] = []
+        for (slotID, rect) in slotMap {
+            let color: OverlayColor = completedSlots.contains(slotID) ? .green : .amber
+            debugElements.append(.box(rect, label: "slot #\(slotID)", color: color))
+        }
+        if let key1Detection {
+            debugElements.append(.box(key1Detection.boundingBox, label: "key1", color: .yellow))
+        }
+        if let key2Detection {
+            debugElements.append(.box(key2Detection.boundingBox, label: "key2", color: .orange))
+        }
+
         if let activeTarget = currentTarget(for: activeKey),
            let targetRect = slotMap[activeTarget] {
             let activeBox = (activeKey == .key1 ? key1Detection : key2Detection)?.boundingBox
             let activeConfidence = (activeKey == .key1 ? key1Detection : key2Detection)?.confidence ?? 0
             if let activeBox {
-                guidance.append(.box(activeBox, label: "\(activeKey.rawValue) \(Int(activeConfidence * 100))%", color: .yellow))
                 guidance.append(.line(
                     CGPoint(x: activeBox.midX, y: activeBox.midY),
                     CGPoint(x: targetRect.midX, y: targetRect.midY),
@@ -194,18 +205,18 @@ struct KeyLockTaskEngine: TaskEngine {
                 radius: max(0.02, min(targetRect.width, targetRect.height) * 0.45),
                 label: "#\(activeTarget)"
             ))
-        }
 
-        var debugElements: [OverlayElement] = []
-        for (slotID, rect) in slotMap {
-            let color: OverlayColor = completedSlots.contains(slotID) ? .green : .amber
-            debugElements.append(.box(rect, label: "slot #\(slotID)", color: color))
-        }
-        if let key1Detection {
-            debugElements.append(.box(key1Detection.boundingBox, label: "key1", color: .yellow))
-        }
-        if let key2Detection {
-            debugElements.append(.box(key2Detection.boundingBox, label: "key2", color: .orange))
+            if let activeBox {
+                let overlapRect = activeBox.intersection(targetRect)
+                let overlapPercent = Int(overlapRatio(activeBox, targetRect) * 100)
+                debugElements.append(.box(targetRect, label: "bin #\(activeTarget)", color: .teal))
+                debugElements.append(.box(activeBox, label: "\(activeKey.rawValue) \(Int(activeConfidence * 100))%", color: .yellow))
+                if !overlapRect.isNull, overlapRect.width > 0, overlapRect.height > 0 {
+                    debugElements.append(.box(overlapRect, label: "red \(overlapPercent)% contour", color: .red))
+                } else {
+                    debugElements.append(.box(targetRect, label: "red 0% contour", color: .red))
+                }
+            }
         }
 
         let status = inputs.inferenceInfo.taskModelLoaded

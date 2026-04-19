@@ -51,11 +51,13 @@ final class RunnerCoordinator {
     #if DEBUG
     private(set) var debugBoundingBoxesVisible = false
     private(set) var debugImageProcessingVisible = false
+    private(set) var debugKeyLockRedPatchVisible = false
     /// Raw task-model detections from the last inference tick. Only populated
     /// while debugBoundingBoxesVisible is true.
     private(set) var debugAllDetections: [TaskDetection] = []
     private(set) var debugInstrumentTip: InstrumentTipPayload? = nil
     private(set) var debugImageProcessingPayload: OverlayPayload = .empty
+    private(set) var debugKeyLockRedPatchPayload: OverlayPayload = .empty
 
     func toggleDebugBoundingBoxes() {
         debugBoundingBoxesVisible.toggle()
@@ -69,6 +71,13 @@ final class RunnerCoordinator {
         debugImageProcessingVisible.toggle()
         if !debugImageProcessingVisible {
             debugImageProcessingPayload = .empty
+        }
+    }
+
+    func toggleDebugKeyLockRedPatch() {
+        debugKeyLockRedPatchVisible.toggle()
+        if !debugKeyLockRedPatchVisible {
+            debugKeyLockRedPatchPayload = .empty
         }
     }
     #endif
@@ -155,6 +164,7 @@ final class RunnerCoordinator {
         debugAllDetections = []
         debugInstrumentTip = nil
         debugImageProcessingPayload = .empty
+        debugKeyLockRedPatchPayload = .empty
         #endif
 
         // Pre-warm models in the background so Start responds instantly.
@@ -330,6 +340,7 @@ final class RunnerCoordinator {
         debugAllDetections = []
         debugInstrumentTip = nil
         debugImageProcessingPayload = .empty
+        debugKeyLockRedPatchPayload = .empty
         #endif
         stateMachine.reset()
     }
@@ -352,6 +363,7 @@ final class RunnerCoordinator {
         debugAllDetections = []
         debugInstrumentTip = nil
         debugImageProcessingPayload = .empty
+        debugKeyLockRedPatchPayload = .empty
         #endif
     }
 
@@ -524,6 +536,9 @@ final class RunnerCoordinator {
         }
         if debugImageProcessingVisible {
             debugImageProcessingPayload = output.debugOverlayPayload
+        }
+        if debugKeyLockRedPatchVisible {
+            debugKeyLockRedPatchPayload = output.debugOverlayPayload
         }
         #endif
 

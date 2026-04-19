@@ -320,6 +320,24 @@ struct TrainerControlsPanel: View {
                 }
 
                 if taskDefinition.id == .keyLock {
+                    Toggle(isOn: Binding(
+                        get: { coordinator.debugKeyLockRedPatchVisible },
+                        set: { _ in coordinator.toggleDebugKeyLockRedPatch() }
+                    )) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "viewfinder")
+                                .foregroundStyle(Color.hxDanger)
+                            Text("KeyLock Red% + Bin Contour")
+                                .font(.hxCaption)
+                        }
+                    }
+                    .tint(Color.hxDanger)
+                    if coordinator.debugKeyLockRedPatchVisible {
+                        dataRow("RedPatch Elements", value: "\(coordinator.debugKeyLockRedPatchPayload.elements.count)")
+                    }
+                }
+
+                if taskDefinition.id == .keyLock {
                     Divider().background(Color.hxSurfaceBorder)
                     Text("Algorithm Debug · KeyLockV2")
                         .font(.hxCaption)
