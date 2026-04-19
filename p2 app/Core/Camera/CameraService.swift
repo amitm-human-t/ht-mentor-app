@@ -19,6 +19,7 @@ final class CameraService: NSObject {
     private(set) var sessionState: SessionState = .idle
     private(set) var torchAvailable = false
     private(set) var torchEnabled = false
+    private(set) var orientationDebugLabel = "ori=landscapeRight angle=0 exif=downMirrored"
 
     nonisolated(unsafe) let session = AVCaptureSession()
 
@@ -72,6 +73,7 @@ final class CameraService: NSObject {
         sessionState = .running
         registerOrientationObserverIfNeeded()
         applyCurrentOrientation()
+        setTorchEnabled(true)
     }
 
     // MARK: - Orientation tracking
@@ -102,6 +104,7 @@ final class CameraService: NSObject {
 
         let angle: CGFloat = orientation == .landscapeLeft ? 180 : 0
         sampleBufferDelegate.exifOrientation = orientation == .landscapeLeft ? .up : .downMirrored
+        orientationDebugLabel = "ori=\(orientation.debugName) angle=\(Int(angle)) exif=\(sampleBufferDelegate.exifOrientation.debugName)"
         AppLogger.runtime.debug("Camera orientation updated — angle=\(Int(angle)) exif=\(orientation == .landscapeLeft ? "up" : "downMirrored", privacy: .public)")
 
         let capturedOutput = videoOutput
@@ -256,6 +259,34 @@ final class CameraService: NSObject {
                 }
                 AppLogger.runtime.error("Torch update failed: \(error.localizedDescription, privacy: .public)")
             }
+        }
+    }
+}
+
+private extension UIInterfaceOrientation {
+    var debugName: String {
+        switch self {
+        case .portrait: return "portrait"
+        case .portraitUpsideDown: return "portraitUpsideDown"
+        case .landscapeLeft: return "landscapeLeft"
+        case .landscapeRight: return "landscapeRight"
+        default: return "unknown"
+        }
+    }
+}
+
+private extension CGImagePropertyOrientation {
+    var debugName: String {
+        switch self {
+        case .up: return "up"
+        case .upMirrored: return "upMirrored"
+        case .down: return "down"
+        case .downMirrored: return "downMirrored"
+        case .left: return "left"
+        case .leftMirrored: return "leftMirrored"
+        case .right: return "right"
+        case .rightMirrored: return "rightMirrored"
+        @unknown default: return "unknown"
         }
     }
 }

@@ -57,10 +57,13 @@ struct TaskRunnerView: View {
         .task {
             mediumFeedback.prepare()
             lightFeedback.prepare()
-            if runnerCoordinator.activeTask?.id != taskDefinition.id {
-                let preferredMode = taskDefinition.supportedModes.contains(.guided)
+            let pendingMode = appModel.consumePendingTaskMode(for: taskDefinition.id)
+            let preferredMode = pendingMode
+                ?? (taskDefinition.supportedModes.contains(.guided)
                     ? TaskMode.guided
-                    : taskDefinition.supportedModes.first ?? .manual
+                    : taskDefinition.supportedModes.first ?? .manual)
+
+            if runnerCoordinator.activeTask?.id != taskDefinition.id || selectedMode != preferredMode {
                 selectedMode = preferredMode
                 runnerCoordinator.prepare(task: taskDefinition, mode: preferredMode)
             }

@@ -151,8 +151,7 @@ private struct TaskCard: View {
                 Button {
                     guard appModel.canStartTasks else { return }
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                    appModel.runnerCoordinator.prepare(task: task, mode: mode)
-                    appModel.startTask(task)
+                    appModel.startTask(task, mode: mode)
                 } label: {
                     HStack(spacing: 5) {
                         if mode == .lockedSprint {

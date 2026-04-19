@@ -344,11 +344,8 @@ final class RunnerCoordinator {
         stopFrameSources()
         stopWorkers()
         audioService?.stopBackground()
-        // Release the task model from memory — it will be reloaded next time this task runs.
-        if let taskID = activeTask?.id {
-            let registry = modelRegistry
-            Task(priority: .background) { await registry.releaseTaskModel(for: taskID) }
-        }
+        // Keep task models warm in memory for fast task switching.
+        // Models are now preloaded in AppModel.bootstrap().
         stateMachine.finish()
         AppLogger.runtime.fileInfo("Runner finished", category: "runtime")
         #if DEBUG

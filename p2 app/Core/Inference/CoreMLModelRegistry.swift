@@ -37,6 +37,18 @@ actor CoreMLModelRegistry {
         AppLogger.inference.info("Prepared task model \(task.rawValue, privacy: .public) outputs: \(taskModel.outputNames.joined(separator: ","), privacy: .public)")
     }
 
+    /// Best-effort warmup for all task models so task switching and runner entry
+    /// are fast. Failures are logged per-model and do not abort the loop.
+    func prepareAllTaskModels() async {
+        for task in TaskIdentifier.allCases {
+            do {
+                try await prepareForTask(task)
+            } catch {
+                AppLogger.inference.error("Task model preload failed for \(task.rawValue, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+
     /// Releases the task model from memory after a run ends.
     func releaseTaskModel(for task: TaskIdentifier) {
         taskModels[task] = nil

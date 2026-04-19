@@ -11,6 +11,7 @@ final class AppModel {
     var deviceSupport = DeviceSupportSnapshot.current()
     var previewVisible = true
     var previewControlsVisible = true
+    @ObservationIgnored private var pendingTaskStartModes: [TaskIdentifier: TaskMode] = [:]
 
     let permissionCenter = PermissionCenter()
     let cameraService = CameraService()
@@ -62,6 +63,7 @@ final class AppModel {
         let registry = modelRegistry
         Task(priority: .background) {
             try? await registry.prepareInstrumentModel()
+            await registry.prepareAllTaskModels()
         }
     }
 
@@ -123,13 +125,22 @@ final class AppModel {
     // Task models are loaded on-demand in RunnerCoordinator.prepare() and released
     // after each run ends. No eager prefetch — instrument model is loaded in bootstrap().
 
-    func startTask(_ task: TaskDefinition) {
+    func startTask(_ task: TaskDefinition, mode: TaskMode? = nil) {
         guard canStartTasks else {
             openDiagnostics()
             return
         }
+        if let mode {
+            pendingTaskStartModes[task.id] = mode
+        }
         debugVideoFrameSource.selectPreferredVideo(for: task.id)
         path.append(.taskRunner(task))
+    }
+
+    func consumePendingTaskMode(for taskID: TaskIdentifier) -> TaskMode? {
+        let mode = pendingTaskStartModes[taskID]
+        pendingTaskStartModes[taskID] = nil
+        return mode
     }
 
     func persistCompletedRun(summary: RunSummaryDraft) {

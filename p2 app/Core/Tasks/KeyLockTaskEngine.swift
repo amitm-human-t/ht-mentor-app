@@ -81,9 +81,10 @@ struct KeyLockTaskEngine: TaskEngine {
         let inWindows = inputs.taskDetections.filter { $0.label == "in" }
         // KeyLockV2 slot discovery must treat both "slot" and "in" as slot candidates.
         // Using both avoids falling back when one label is partially missing per frame.
-        let slotRects = inputs.taskDetections
+        let rawSlotRects = inputs.taskDetections
             .filter { $0.label == "slot" || $0.label == "in" }
             .map(\.boundingBox)
+        let slotRects = deduplicateSlotRects(rawSlotRects)
         var slotMap = assignSlotIDs(slotRects: slotRects)
 
         if slotMap.count >= 10 {
@@ -280,6 +281,18 @@ struct KeyLockTaskEngine: TaskEngine {
         guard !intersection.isNull else { return 0 }
         let minArea = max(0.0001, min(lhs.width * lhs.height, rhs.width * rhs.height))
         return (intersection.width * intersection.height) / minArea
+    }
+
+    private func deduplicateSlotRects(_ rects: [CGRect]) -> [CGRect] {
+        guard rects.count > 13 else { return rects }
+        var kept: [CGRect] = []
+        for rect in rects.sorted(by: { ($0.width * $0.height) > ($1.width * $1.height) }) {
+            let overlapsExisting = kept.contains { overlapRatio(rect, $0) >= 0.70 }
+            if !overlapsExisting {
+                kept.append(rect)
+            }
+        }
+        return kept
     }
 
     /// Assign KeyLockV2 slot IDs using explicit board semantics:

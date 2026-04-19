@@ -51,6 +51,11 @@ struct AppPreviewStageView: View {
                     }
                     #endif
                 }
+                .overlay(alignment: .bottomLeading) {
+                    orientationDebugBadge
+                        .padding(.leading, HXSpacing.md)
+                        .padding(.bottom, HXSpacing.md)
+                }
                 .clipShape(RoundedRectangle(cornerRadius: compact ? 20 : 28, style: .continuous))
 
             if showsControls && appModel.previewControlsVisible {
@@ -146,6 +151,19 @@ struct AppPreviewStageView: View {
             get: { runnerCoordinator.inputSource },
             set: { runnerCoordinator.inputSource = $0 }
         )
+    }
+
+    private var orientationDebugBadge: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(cameraService.orientationDebugLabel)
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+            Text("source: \(runnerCoordinator.inputSource.title)")
+                .font(.system(size: 10, weight: .regular, design: .monospaced))
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(Color.black.opacity(0.62), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 
@@ -252,10 +270,21 @@ private struct PreviewOverlayView: View {
     }
 
     private func mapPoint(_ point: CGPoint, into size: CGSize) -> CGPoint {
-        // Points for lines/targets are still in normalised 0..1 space — scale to view.
-        // Apply same flip as YOLO rects for consistency.
-        let flipped = CGPoint(x: 1.0 - point.x, y: 1.0 - point.y)
-        return CGPoint(x: flipped.x * size.width, y: flipped.y * size.height)
+        // Unify point mapping with box mapping: pass a tiny normalized probe rect
+        // through the exact same preview-layer converter path.
+        let epsilon: CGFloat = 0.002
+        let probe = CGRect(
+            x: max(0, min(1, point.x - epsilon * 0.5)),
+            y: max(0, min(1, point.y - epsilon * 0.5)),
+            width: epsilon,
+            height: epsilon
+        )
+        let mapped = coordinateConverter(probe)
+        if mapped.midX.isFinite, mapped.midY.isFinite {
+            return CGPoint(x: mapped.midX, y: mapped.midY)
+        }
+        _ = size
+        return .zero
     }
 }
 
