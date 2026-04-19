@@ -19,19 +19,23 @@ actor CoreMLModelRegistry {
     private var instrumentModel: LoadedModel?
 
     func prepareForTask(_ task: TaskIdentifier) async throws {
-        // Short-circuit: nothing to do if this task's models are already loaded.
-        if taskModels[task] != nil && instrumentModel != nil { return }
+        // Load task model only if not already loaded for this identifier.
+        if taskModels[task] == nil {
+            guard let taskAsset = modelAsset(for: task) else { return }
+            let taskModel = try loadModel(named: task.rawValue, asset: taskAsset, fallbackLabels: fallbackLabels(for: task))
+            taskModels[task] = taskModel
+            let taskOutputs = taskModel.outputNames.joined(separator: ",")
+            AppLogger.inference.info("Prepared task model \(task.rawValue, privacy: .public) outputs: \(taskOutputs, privacy: .public)")
+        }
 
-        guard let taskAsset = modelAsset(for: task) else { return }
-        let taskModel = try loadModel(named: task.rawValue, asset: taskAsset, fallbackLabels: fallbackLabels(for: task))
-        let instrumentAsset = BundledAsset(pathComponents: ["models", "instrument"], fileExtension: "mlpackage", kind: .model)
-        let instrumentModel = try loadModel(named: "instrument", asset: instrumentAsset, fallbackLabels: [0: "Tip", 1: "manual"])
-        taskModels[task] = taskModel
-        self.instrumentModel = instrumentModel
-        let taskOutputs = taskModel.outputNames.joined(separator: ",")
-        let instrumentOutputs = instrumentModel.outputNames.joined(separator: ",")
-        AppLogger.inference.info("Prepared task model \(task.rawValue, privacy: .public) outputs: \(taskOutputs, privacy: .public)")
-        AppLogger.inference.info("Prepared instrument model outputs: \(instrumentOutputs, privacy: .public)")
+        // Load instrument model only once — shared across all tasks.
+        if instrumentModel == nil {
+            let instrumentAsset = BundledAsset(pathComponents: ["models", "instrument"], fileExtension: "mlpackage", kind: .model)
+            let instrModel = try loadModel(named: "instrument", asset: instrumentAsset, fallbackLabels: [0: "Tip", 1: "manual"])
+            instrumentModel = instrModel
+            let instrumentOutputs = instrModel.outputNames.joined(separator: ",")
+            AppLogger.inference.info("Prepared instrument model outputs: \(instrumentOutputs, privacy: .public)")
+        }
     }
 
     func taskInference(

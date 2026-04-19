@@ -22,8 +22,8 @@ final class AudioService {
 
     func startBackground() {
         let tracks: [BundledAsset] = [
-            BundledAsset(pathComponents: ["sounds", "backgrounds", "background1"], fileExtension: "mp3", kind: .sound),
-            BundledAsset(pathComponents: ["sounds", "backgrounds", "background2"], fileExtension: "mp3", kind: .sound)
+            BundledAsset(pathComponents: ["sounds", "backgrounds", "background1"], fileExtension: "wav", kind: .sound),
+            BundledAsset(pathComponents: ["sounds", "backgrounds", "background2"], fileExtension: "wav", kind: .sound)
         ]
         let asset = tracks.randomElement()!
         guard let url = asset.locate(in: .main) else {

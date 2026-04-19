@@ -167,21 +167,26 @@ private struct PreviewOverlayView: View {
         .allowsHitTesting(false)
     }
 
+    @ViewBuilder
     private func boxOverlay(rect: CGRect, label: String, color: OverlayColor, in size: CGSize) -> some View {
         let mapped = mapYOLO(rect: rect, into: size)
-        return ZStack(alignment: .topLeading) {
-            Rectangle()
-                .stroke(color.swiftUIColor, lineWidth: 2.5)
-                .frame(width: mapped.width, height: mapped.height)
-                .position(x: mapped.midX, y: mapped.midY)
+        if mapped.width > 1 && mapped.height > 1 &&
+           mapped.width.isFinite && mapped.height.isFinite &&
+           mapped.origin.x.isFinite && mapped.origin.y.isFinite {
+            ZStack(alignment: .topLeading) {
+                Rectangle()
+                    .stroke(color.swiftUIColor, lineWidth: 2.5)
+                    .frame(width: mapped.width, height: mapped.height)
+                    .position(x: mapped.midX, y: mapped.midY)
 
-            Text(label)
-                .font(.hxCaption)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 3)
-                .background(Color.black.opacity(0.78), in: Capsule())
-                .foregroundStyle(color.swiftUIColor)
-                .position(x: mapped.minX + max(36, mapped.width / 2), y: max(12, mapped.minY - 13))
+                Text(label)
+                    .font(.hxCaption)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(Color.black.opacity(0.78), in: Capsule())
+                    .foregroundStyle(color.swiftUIColor)
+                    .position(x: mapped.minX + max(36, mapped.width / 2), y: max(12, mapped.minY - 13))
+            }
         }
     }
 
@@ -263,19 +268,23 @@ private struct DebugDetectionOverlay: View {
         ZStack {
             ForEach(detections) { detection in
                 let rect = coordinateConverter(detection.boundingBox)
-                ZStack(alignment: .topLeading) {
-                    Rectangle()
-                        .stroke(Color.hxAmber.opacity(0.75), lineWidth: 1.5)
-                        .frame(width: rect.width, height: rect.height)
-                        .position(x: rect.midX, y: rect.midY)
+                if rect.width > 1 && rect.height > 1 &&
+                   rect.width.isFinite && rect.height.isFinite &&
+                   rect.origin.x.isFinite && rect.origin.y.isFinite {
+                    ZStack(alignment: .topLeading) {
+                        Rectangle()
+                            .stroke(Color.hxAmber.opacity(0.75), lineWidth: 1.5)
+                            .frame(width: rect.width, height: rect.height)
+                            .position(x: rect.midX, y: rect.midY)
 
-                    Text("\(detection.label) \(Int(detection.confidence * 100))%")
-                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(Color.hxAmber)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 2)
-                        .background(Color.black.opacity(0.65))
-                        .position(x: rect.midX, y: max(10, rect.minY - 9))
+                        Text("\(detection.label) \(Int(detection.confidence * 100))%")
+                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(Color.hxAmber)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 2)
+                            .background(Color.black.opacity(0.65))
+                            .position(x: rect.midX, y: max(10, rect.minY - 9))
+                    }
                 }
             }
 
@@ -286,14 +295,16 @@ private struct DebugDetectionOverlay: View {
                     width: 0.03,
                     height: 0.03
                 ))
-                Circle()
-                    .fill(Color.hxCyan.opacity(0.8))
-                    .frame(width: 10, height: 10)
-                    .position(x: tipRect.midX, y: tipRect.midY)
-                Circle()
-                    .stroke(Color.hxCyan, lineWidth: 1.5)
-                    .frame(width: 22, height: 22)
-                    .position(x: tipRect.midX, y: tipRect.midY)
+                if tipRect.midX.isFinite && tipRect.midY.isFinite {
+                    Circle()
+                        .fill(Color.hxCyan.opacity(0.8))
+                        .frame(width: 10, height: 10)
+                        .position(x: tipRect.midX, y: tipRect.midY)
+                    Circle()
+                        .stroke(Color.hxCyan, lineWidth: 1.5)
+                        .frame(width: 22, height: 22)
+                        .position(x: tipRect.midX, y: tipRect.midY)
+                }
             }
         }
         .allowsHitTesting(false)

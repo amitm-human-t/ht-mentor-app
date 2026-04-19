@@ -10,6 +10,8 @@ struct TaskRunnerView: View {
     @State private var selectedMode: TaskMode = .guided
     @State private var isControlPanelVisible = true
     @State private var runResultsShown = false
+    @State private var mediumFeedback = UIImpactFeedbackGenerator(style: .medium)
+    @State private var lightFeedback = UIImpactFeedbackGenerator(style: .light)
     @Environment(\.dismiss) private var dismiss
 
     init(appModel: AppModel, taskDefinition: TaskDefinition) {
@@ -52,6 +54,8 @@ struct TaskRunnerView: View {
         .toolbar(.hidden, for: .navigationBar)
         .animation(.hxPanel, value: isControlPanelVisible)
         .task {
+            mediumFeedback.prepare()
+            lightFeedback.prepare()
             if runnerCoordinator.activeTask?.id != taskDefinition.id {
                 let preferredMode = taskDefinition.supportedModes.contains(.guided)
                     ? TaskMode.guided
@@ -59,6 +63,7 @@ struct TaskRunnerView: View {
                 selectedMode = preferredMode
                 runnerCoordinator.prepare(task: taskDefinition, mode: preferredMode)
             }
+            await runnerCoordinator.beginPreviewInference()
         }
         .onDisappear {
             // Only persist here if we haven't already done so via the Results button
@@ -149,7 +154,7 @@ struct TaskRunnerView: View {
             // Primary run control
             if phase == .idle || phase == .error {
                 Button {
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    mediumFeedback.impactOccurred()
                     Task { await runnerCoordinator.start() }
                 } label: {
                     Group {
@@ -168,7 +173,7 @@ struct TaskRunnerView: View {
                 .disabled(runnerCoordinator.isModelLoading)
             } else if phase == .running {
                 Button {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    lightFeedback.impactOccurred()
                     runnerCoordinator.pause()
                 } label: {
                     Label("Pause", systemImage: "pause.fill")
@@ -177,7 +182,7 @@ struct TaskRunnerView: View {
                 .buttonStyle(.glass)
             } else if phase == .paused {
                 Button {
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    mediumFeedback.impactOccurred()
                     runnerCoordinator.resume()
                 } label: {
                     Label("Resume", systemImage: "play.fill")
@@ -187,7 +192,7 @@ struct TaskRunnerView: View {
                 .tint(Color.hxSuccess)
             } else if phase == .finished {
                 Button {
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    mediumFeedback.impactOccurred()
                     if let summary = runnerCoordinator.buildSummary() {
                         runResultsShown = true
                         appModel.openResults(summary: summary)

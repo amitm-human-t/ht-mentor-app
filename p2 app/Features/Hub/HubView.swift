@@ -20,6 +20,7 @@ struct HubView: View {
         }
         .background(Color.hxBackground.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
+        .onAppear { appModel.refreshPreviewSource() }
     }
 
     // MARK: - Left Panel

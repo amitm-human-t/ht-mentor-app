@@ -81,6 +81,7 @@ final class RunnerCoordinator {
     private var thermalThrottleSkip = false
 
     @ObservationIgnored private var runLoopTask: Task<Void, Never>?
+    @ObservationIgnored private var previewLoopTask: Task<Void, Never>?
     @ObservationIgnored private var reconnectCountdownTask: Task<Void, Never>?
     @ObservationIgnored private var taskInferenceWorker: TaskInferenceWorker?
     @ObservationIgnored private var instrumentInferenceWorker: InstrumentInferenceWorker?
@@ -113,6 +114,8 @@ final class RunnerCoordinator {
     // MARK: - Lifecycle
 
     func prepare(task: TaskDefinition, mode: TaskMode) {
+        previewLoopTask?.cancel()
+        previewLoopTask = nil
         activeTask = task
         selectedMode = mode
         taskEngine = engine(for: task.id)
@@ -136,6 +139,10 @@ final class RunnerCoordinator {
         )
         trainerActions = []
         stateMachine = RunStateMachine()
+        #if DEBUG
+        debugAllDetections = []
+        debugInstrumentTip = nil
+        #endif
 
         // Pre-warm models in the background so Start responds instantly.
         // The actor short-circuits if models are already loaded.
@@ -158,9 +165,55 @@ final class RunnerCoordinator {
         }
     }
 
+    /// Start inference workers and (in DEBUG) a preview overlay loop while the
+    /// task is in the idle phase. Workers started here are reused by start() so
+    /// the first frame of the run has no cold-start delay.
+    func beginPreviewInference() async {
+        await modelPreloadTask?.value
+        guard modelLoadError == nil, let activeTask else { return }
+
+        // Ensure the frame source is feeding the bus (no-op if already running).
+        do { try await startFrameSource() } catch { return }
+
+        // Create workers if they haven't been created yet for this prepare cycle.
+        if taskInferenceWorker == nil {
+            let taskWorker = TaskInferenceWorker(
+                task: activeTask.id, frameBus: frameBus, modelRegistry: modelRegistry)
+            await taskWorker.start()
+            let instrWorker = InstrumentInferenceWorker(
+                frameBus: frameBus, modelRegistry: modelRegistry)
+            await instrWorker.start()
+            taskInferenceWorker = taskWorker
+            instrumentInferenceWorker = instrWorker
+        }
+
+        #if DEBUG
+        previewLoopTask?.cancel()
+        previewLoopTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled && self.stateMachine.phase == .idle {
+                if self.debugBoundingBoxesVisible {
+                    let taskInference = await self.taskInferenceWorker?.snapshot()
+                        ?? TaskInferenceSnapshot(modelLoaded: false, outputNames: [], detections: [])
+                    let instrInference = await self.instrumentInferenceWorker?.snapshot()
+                        ?? InstrumentInferenceSnapshot(modelLoaded: false, outputNames: [], tip: nil)
+                    self.debugAllDetections = taskInference.detections
+                    self.debugInstrumentTip = instrInference.tip
+                }
+                try? await Task.sleep(for: .milliseconds(150))
+            }
+        }
+        #endif
+    }
+
     func start() async {
         guard let activeTask else { return }
         currentFailure = nil
+
+        // Stop the idle-phase preview loop — workers will be reused for the run.
+        previewLoopTask?.cancel()
+        previewLoopTask = nil
+
         AppLogger.runtime.fileInfo(
             "Starting \(activeTask.id.rawValue) mode \(selectedMode.rawValue) source \(inputSource.rawValue)",
             category: "runtime"
@@ -195,15 +248,18 @@ final class RunnerCoordinator {
         do {
             try await startFrameSource()
 
-            let taskWorker = TaskInferenceWorker(
-                task: activeTask.id, frameBus: frameBus, modelRegistry: modelRegistry)
-            await taskWorker.start()
-            let instrWorker = InstrumentInferenceWorker(
-                frameBus: frameBus, modelRegistry: modelRegistry)
-            await instrWorker.start()
-
-            taskInferenceWorker = taskWorker
-            instrumentInferenceWorker = instrWorker
+            // Reuse workers started by beginPreviewInference() if available;
+            // otherwise create them fresh.
+            if taskInferenceWorker == nil || instrumentInferenceWorker == nil {
+                let taskWorker = TaskInferenceWorker(
+                    task: activeTask.id, frameBus: frameBus, modelRegistry: modelRegistry)
+                await taskWorker.start()
+                let instrWorker = InstrumentInferenceWorker(
+                    frameBus: frameBus, modelRegistry: modelRegistry)
+                await instrWorker.start()
+                taskInferenceWorker = taskWorker
+                instrumentInferenceWorker = instrWorker
+            }
 
             taskEngine.start()
             taskStartDate = Date()
@@ -234,6 +290,8 @@ final class RunnerCoordinator {
 
     func reset() {
         runLoopTask?.cancel()
+        previewLoopTask?.cancel()
+        previewLoopTask = nil
         stopFrameSources()
         stopWorkers()
         taskEngine.reset()
@@ -266,11 +324,17 @@ final class RunnerCoordinator {
         reconnectCountdownTask = nil
         disconnectCountdown = nil
         runLoopTask?.cancel()
+        previewLoopTask?.cancel()
+        previewLoopTask = nil
         stopFrameSources()
         stopWorkers()
         audioService?.stopBackground()
         stateMachine.finish()
         AppLogger.runtime.fileInfo("Runner finished", category: "runtime")
+        #if DEBUG
+        debugAllDetections = []
+        debugInstrumentTip = nil
+        #endif
     }
 
     // MARK: - Input source switching
