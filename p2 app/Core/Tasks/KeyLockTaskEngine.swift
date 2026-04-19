@@ -28,6 +28,11 @@ struct KeyLockTaskEngine: TaskEngine {
         var completed: Bool { target == nil }
     }
 
+    private struct TrackedDetection {
+        var detection: TaskDetection
+        var lastSeen: TimeInterval
+    }
+
     private var config: TaskConfig?
     private var keyStates: [KeyID: KeyState] = [:]
     private var activeKey: KeyID = .key1
@@ -36,9 +41,16 @@ struct KeyLockTaskEngine: TaskEngine {
     private var drops = 0
     private var completedTargets = 0
     private var processedActionTimestamps: Set<TimeInterval> = []
+    private var key1Tracked: TrackedDetection?
+    private var key2Tracked: TrackedDetection?
+    private var lastStableSlotMap: [Int: CGRect] = [:]
+    private var lastStableSlotMapTimestamp: TimeInterval?
 
     private let rightExcluded: Set<Int> = [2, 5, 6]
     private let leftExcluded: Set<Int> = [9, 11, 12]
+    private let keyPersistenceSeconds: TimeInterval = 0.20
+    private let slotMapPersistenceSeconds: TimeInterval = 0.25
+    private let smoothingAlpha: CGFloat = 0.65
 
     mutating func start() {}
     mutating func pause() {}
@@ -51,6 +63,10 @@ struct KeyLockTaskEngine: TaskEngine {
         drops = 0
         completedTargets = 0
         processedActionTimestamps = []
+        key1Tracked = nil
+        key2Tracked = nil
+        lastStableSlotMap = [:]
+        lastStableSlotMapTimestamp = nil
     }
 
     mutating func configure(_ config: TaskConfig) {
@@ -66,15 +82,35 @@ struct KeyLockTaskEngine: TaskEngine {
         let inWindows = inputs.taskDetections.filter { $0.label == "in" }
         let slotRects = (!slotDetections.isEmpty ? slotDetections : inWindows)
             .map(\.boundingBox)
-        let slotMap = assignSlotIDs(slotRects: slotRects)
+        var slotMap = assignSlotIDs(slotRects: slotRects)
+
+        if slotMap.count >= 10 {
+            lastStableSlotMap = slotMap
+            lastStableSlotMapTimestamp = inputs.elapsed
+        } else if let lastTs = lastStableSlotMapTimestamp,
+                  inputs.elapsed - lastTs <= slotMapPersistenceSeconds,
+                  !lastStableSlotMap.isEmpty {
+            slotMap = lastStableSlotMap
+        }
 
         let slotOverlapThreshold = CGFloat(UserDefaultsStore.keyLockSlotOverlapThreshold)
         let holdDurationSeconds = TimeInterval(UserDefaultsStore.keyLockHoldDurationSeconds)
         let acceptanceConfidence = UserDefaultsStore.keyLockAcceptanceConfidence
 
-        let key1Detection = bestDetection(label: "key1", from: inputs.taskDetections)
+        let rawKey1Detection = bestDetection(label: "key1", from: inputs.taskDetections)
             ?? bestDetection(label: "key", from: inputs.taskDetections)
-        let key2Detection = bestDetection(label: "key2", from: inputs.taskDetections)
+        let rawKey2Detection = bestDetection(label: "key2", from: inputs.taskDetections)
+
+        let key1Detection = stabilizedDetection(
+            raw: rawKey1Detection,
+            tracked: &key1Tracked,
+            now: inputs.elapsed
+        )
+        let key2Detection = stabilizedDetection(
+            raw: rawKey2Detection,
+            tracked: &key2Tracked,
+            now: inputs.elapsed
+        )
 
         for action in inputs.trainerActions where !processedActionTimestamps.contains(action.timestamp) {
             processedActionTimestamps.insert(action.timestamp)
@@ -244,18 +280,118 @@ struct KeyLockTaskEngine: TaskEngine {
         return (intersection.width * intersection.height) / minArea
     }
 
+    /// Assign KeyLockV2 slot IDs using explicit board semantics:
+    /// - center slot is #13
+    /// - left side bottom->top is #1...#6
+    /// - right side bottom->top is #7...#12
+    /// This matches the mentor-provided numbering (1/7 bottom, 6/12 top).
     private func assignSlotIDs(slotRects: [CGRect]) -> [Int: CGRect] {
-        let sorted = slotRects.sorted { lhs, rhs in
-            if abs(lhs.midY - rhs.midY) > 0.03 {
-                let invertY = UserDefaultsStore.keyLockInvertYOrdering
-                return invertY ? (lhs.midY < rhs.midY) : (lhs.midY > rhs.midY)
+        guard slotRects.count >= 13 else {
+            // Fallback to deterministic generic ordering when detections are incomplete.
+            let sorted = slotRects.sorted { lhs, rhs in
+                if abs(lhs.midY - rhs.midY) > 0.03 {
+                    let invertY = UserDefaultsStore.keyLockInvertYOrdering
+                    return invertY ? (lhs.midY < rhs.midY) : (lhs.midY > rhs.midY)
+                }
+                return lhs.midX < rhs.midX
             }
-            return lhs.midX < rhs.midX
+            var mapping: [Int: CGRect] = [:]
+            for (idx, rect) in sorted.enumerated() where idx < 13 {
+                mapping[idx + 1] = rect
+            }
+            return mapping
         }
-        var mapping: [Int: CGRect] = [:]
-        for (idx, rect) in sorted.enumerated() where idx < 13 {
-            mapping[idx + 1] = rect
+
+        // Center slot (#13): rectangle closest to the centroid of all slots.
+        let centroid = CGPoint(
+            x: slotRects.map(\.midX).reduce(0, +) / CGFloat(slotRects.count),
+            y: slotRects.map(\.midY).reduce(0, +) / CGFloat(slotRects.count)
+        )
+        guard let centerRect = slotRects.min(by: {
+            hypot($0.midX - centroid.x, $0.midY - centroid.y) < hypot($1.midX - centroid.x, $1.midY - centroid.y)
+        }) else {
+            return [:]
+        }
+
+        let nonCenter = slotRects.filter { $0 != centerRect }
+        guard nonCenter.count >= 12 else { return [13: centerRect] }
+
+        // Side split by X around center slot.
+        let leftSide = nonCenter
+            .filter { $0.midX < centerRect.midX }
+            .sorted { $0.midX < $1.midX }
+        let rightSide = nonCenter
+            .filter { $0.midX >= centerRect.midX }
+            .sorted { $0.midX > $1.midX }
+
+        // Normalize to 6 per side (if one side has extras due to noisy detections).
+        let leftSix = Array(leftSide.suffix(6))
+        let rightSix = Array(rightSide.suffix(6))
+        guard leftSix.count == 6, rightSix.count == 6 else {
+            var mapping: [Int: CGRect] = [13: centerRect]
+            let fallback = nonCenter.sorted { $0.midX < $1.midX }
+            for (idx, rect) in fallback.enumerated() where idx < 12 {
+                mapping[idx + 1] = rect
+            }
+            return mapping
+        }
+
+        let invertY = UserDefaultsStore.keyLockInvertYOrdering
+        let leftBottomToTop = leftSix.sorted {
+            invertY ? ($0.midY < $1.midY) : ($0.midY > $1.midY)
+        }
+        let rightBottomToTop = rightSix.sorted {
+            invertY ? ($0.midY < $1.midY) : ($0.midY > $1.midY)
+        }
+
+        var mapping: [Int: CGRect] = [13: centerRect]
+        for (idx, rect) in leftBottomToTop.enumerated() {
+            mapping[idx + 1] = rect // 1...6
+        }
+        for (idx, rect) in rightBottomToTop.enumerated() {
+            mapping[idx + 7] = rect // 7...12
         }
         return mapping
+    }
+
+    private func stabilizedDetection(
+        raw: TaskDetection?,
+        tracked: inout TrackedDetection?,
+        now: TimeInterval
+    ) -> TaskDetection? {
+        if let raw {
+            let blended: TaskDetection
+            if let previous = tracked?.detection {
+                blended = TaskDetection(
+                    id: raw.id,
+                    label: raw.label,
+                    confidence: Float(
+                        (CGFloat(previous.confidence) * (1.0 - smoothingAlpha))
+                        + (CGFloat(raw.confidence) * smoothingAlpha)
+                    ),
+                    boundingBox: blend(previous.boundingBox, raw.boundingBox, alpha: smoothingAlpha)
+                )
+            } else {
+                blended = raw
+            }
+            tracked = TrackedDetection(detection: blended, lastSeen: now)
+            return blended
+        }
+
+        guard let tracked, now - tracked.lastSeen <= keyPersistenceSeconds else {
+            tracked = nil
+            return nil
+        }
+        return tracked.detection
+    }
+
+    private func blend(_ a: CGRect, _ b: CGRect, alpha: CGFloat) -> CGRect {
+        let t = max(0, min(1, alpha))
+        return CGRect(
+            x: (a.origin.x * (1 - t)) + (b.origin.x * t),
+            y: (a.origin.y * (1 - t)) + (b.origin.y * t),
+            width: (a.size.width * (1 - t)) + (b.size.width * t),
+            height: (a.size.height * (1 - t)) + (b.size.height * t)
+        )
     }
 }

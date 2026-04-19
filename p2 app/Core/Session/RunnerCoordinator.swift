@@ -460,7 +460,9 @@ final class RunnerCoordinator {
             guard let self else { return }
             while !Task.isCancelled {
                 await self.tick()
-                try? await Task.sleep(for: .milliseconds(100))
+                // Sample task state at 20Hz for more responsive progression/UI
+                // while keeping inference fully decoupled in worker actors.
+                try? await Task.sleep(for: .milliseconds(50))
             }
         }
     }
