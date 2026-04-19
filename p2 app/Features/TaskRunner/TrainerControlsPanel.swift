@@ -346,8 +346,8 @@ struct TrainerControlsPanel: View {
                     thresholdSliderRow(
                         label: "Red %",
                         value: Double(UserDefaultsStore.keyLockSlotOverlapThreshold),
-                        range: 0.05...0.90,
-                        valueText: "\(Int(UserDefaultsStore.keyLockSlotOverlapThreshold * 100))%"
+                        range: 10...100,
+                        valueText: "\(Int(UserDefaultsStore.keyLockSlotOverlapThreshold))%"
                     ) { newValue in
                         UserDefaultsStore.keyLockSlotOverlapThreshold = Float(newValue)
                     }
@@ -359,15 +359,6 @@ struct TrainerControlsPanel: View {
                         valueText: String(format: "%.2fs", UserDefaultsStore.keyLockHoldDurationSeconds)
                     ) { newValue in
                         UserDefaultsStore.keyLockHoldDurationSeconds = Float(newValue)
-                    }
-
-                    thresholdSliderRow(
-                        label: "Gate Conf",
-                        value: Double(UserDefaultsStore.keyLockAcceptanceConfidence),
-                        range: 0.05...0.95,
-                        valueText: "\(Int(UserDefaultsStore.keyLockAcceptanceConfidence * 100))%"
-                    ) { newValue in
-                        UserDefaultsStore.keyLockAcceptanceConfidence = Float(newValue)
                     }
 
                     Toggle(isOn: Binding(

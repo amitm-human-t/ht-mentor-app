@@ -110,9 +110,8 @@ struct KeyLockTaskEngine: TaskEngine {
             slotMap = self.lockedSlotMap ?? discoveredSlotMap
         }
 
-        let slotOverlapThreshold = CGFloat(UserDefaultsStore.keyLockSlotOverlapThreshold)
+        let redPctThreshold = Double(UserDefaultsStore.keyLockSlotOverlapThreshold)
         let holdDurationSeconds = TimeInterval(UserDefaultsStore.keyLockHoldDurationSeconds)
-        let acceptanceConfidence = UserDefaultsStore.keyLockAcceptanceConfidence
 
         let rawKey1Detection = bestDetection(label: "key1", from: inputs.taskDetections)
             ?? bestDetection(label: "key", from: inputs.taskDetections)
@@ -128,6 +127,20 @@ struct KeyLockTaskEngine: TaskEngine {
             tracked: &key2Tracked,
             now: inputs.elapsed
         )
+
+        var keyDetectionsForAnalysis: [String: TaskDetection] = [:]
+        if let key1Detection { keyDetectionsForAnalysis[KeyID.key1.rawValue] = key1Detection }
+        if let key2Detection { keyDetectionsForAnalysis[KeyID.key2.rawValue] = key2Detection }
+        let colorResults: [String: KeyLockColorAnalysis.KeyResult]
+        if let frame = inputs.frame {
+            colorResults = KeyLockColorAnalysis.analyze(
+                frame: frame,
+                keyDetections: keyDetectionsForAnalysis,
+                inDetections: inWindows
+            )
+        } else {
+            colorResults = [:]
+        }
 
         for action in inputs.trainerActions where !processedActionTimestamps.contains(action.timestamp) {
             processedActionTimestamps.insert(action.timestamp)
@@ -157,11 +170,11 @@ struct KeyLockTaskEngine: TaskEngine {
            let targetRect = slotMap[target],
            let activeDetection = (activeKey == .key1 ? key1Detection : key2Detection) {
 
-            let activeBox = activeDetection.boundingBox
-            let targetOverlap = overlapRatio(activeBox, targetRect)
-            let inWindow = inWindows.contains { overlapRatio(activeBox, $0.boundingBox) >= slotOverlapThreshold }
-            let confidenceOkay = activeDetection.confidence >= acceptanceConfidence
-            let shouldAdvance = targetOverlap >= slotOverlapThreshold && inWindow && confidenceOkay
+            _ = targetRect
+            _ = activeDetection
+            let activeResult = colorResults[activeKey.rawValue]
+            let redPct = activeResult?.redPct ?? 0
+            let shouldAdvance = activeResult != nil && redPct > redPctThreshold
 
             if shouldAdvance {
                 if keyStates[activeKey]?.holdStart == nil {
@@ -206,16 +219,16 @@ struct KeyLockTaskEngine: TaskEngine {
                 label: "#\(activeTarget)"
             ))
 
+            debugElements.append(.box(targetRect, label: "bin #\(activeTarget)", color: .teal))
             if let activeBox {
-                let overlapRect = activeBox.intersection(targetRect)
-                let overlapPercent = Int(overlapRatio(activeBox, targetRect) * 100)
-                debugElements.append(.box(targetRect, label: "bin #\(activeTarget)", color: .teal))
                 debugElements.append(.box(activeBox, label: "\(activeKey.rawValue) \(Int(activeConfidence * 100))%", color: .yellow))
-                if !overlapRect.isNull, overlapRect.width > 0, overlapRect.height > 0 {
-                    debugElements.append(.box(overlapRect, label: "red \(overlapPercent)% contour", color: .red))
-                } else {
-                    debugElements.append(.box(targetRect, label: "red 0% contour", color: .red))
-                }
+            }
+
+            if let activeResult = colorResults[activeKey.rawValue] {
+                debugElements.append(.box(activeResult.refinedRect, label: "refined in-window", color: .white))
+                debugElements.append(.box(activeResult.contourRect, label: "red \(Int(activeResult.redPct))% contour", color: .red))
+            } else {
+                debugElements.append(.box(targetRect, label: "red N/A (no contour)", color: .red))
             }
         }
 

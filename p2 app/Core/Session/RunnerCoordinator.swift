@@ -503,9 +503,13 @@ final class RunnerCoordinator {
             ?? TaskInferenceSnapshot(modelLoaded: false, outputNames: [], detections: [])
         let instrumentInference = await instrumentInferenceWorker?.snapshot()
             ?? InstrumentInferenceSnapshot(modelLoaded: false, outputNames: [], tip: nil)
+        let latestFrame = await frameBus.latestFrame()
 
         let inputs = TaskInputs(
             elapsed: elapsed,
+            frame: latestFrame.map {
+                .init(pixelBuffer: $0.pixelBuffer, timestamp: $0.timestamp, exifOrientation: $0.exifOrientation)
+            },
             handXSample: bleManager.latestSample,
             instrumentTip: instrumentInference.tip,
             taskDetections: taskInference.detections,

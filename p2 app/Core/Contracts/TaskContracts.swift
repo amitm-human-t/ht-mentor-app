@@ -2,6 +2,7 @@ import Foundation
 import CoreGraphics
 import SwiftUI
 import simd
+import AVFoundation
 
 enum TaskIdentifier: String, Codable, Hashable, CaseIterable {
     case keyLock
@@ -81,7 +82,14 @@ struct TrainerAction: Hashable, Sendable {
 }
 
 struct TaskInputs: Sendable {
+    struct VideoFrame: @unchecked Sendable {
+        let pixelBuffer: CVPixelBuffer
+        let timestamp: TimeInterval
+        let exifOrientation: CGImagePropertyOrientation
+    }
+
     let elapsed: TimeInterval
+    let frame: VideoFrame?
     let handXSample: HandXSample
     let instrumentTip: InstrumentTipPayload?
     let taskDetections: [TaskDetection]

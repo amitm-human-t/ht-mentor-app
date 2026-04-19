@@ -39,11 +39,14 @@ enum UserDefaultsStore {
         set { defaults.set(newValue, forKey: "hx_iouThreshold") }
     }
 
-    /// KeyLockV2 overlap gate ("red %") as a fraction 0.0–1.0. Default 0.18.
+    /// KeyLockV2 red-pixel threshold in percent (0–100). Default 75.
     static var keyLockSlotOverlapThreshold: Float {
         get {
             let v = defaults.float(forKey: "hx_keylock_overlapThreshold")
-            return v == 0 ? 0.18 : v
+            if v == 0 { return 75.0 }
+            // Backward compatibility: older builds stored this as 0...1 overlap ratio.
+            if v > 0, v <= 1.0 { return v * 100.0 }
+            return v
         }
         set { defaults.set(newValue, forKey: "hx_keylock_overlapThreshold") }
     }
@@ -57,7 +60,7 @@ enum UserDefaultsStore {
         set { defaults.set(newValue, forKey: "hx_keylock_holdSeconds") }
     }
 
-    /// KeyLockV2 confidence gate (0.0–1.0). Default 0.75.
+    /// Legacy confidence gate retained for compatibility while migrating tasks.
     static var keyLockAcceptanceConfidence: Float {
         get {
             let v = defaults.float(forKey: "hx_keylock_acceptanceConfidence")
